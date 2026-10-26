@@ -1,5 +1,6 @@
 // Media uploads: validated by magic bytes, images resized to WebP variants with sharp.
-import { mkdirSync, writeFileSync, unlinkSync, existsSync } from 'node:fs';
+import { mkdirSync, writeFileSync, unlinkSync, existsSync, readFileSync } from 'node:fs';
+import { execFileSync } from 'node:child_process';
 import { join, resolve, extname } from 'node:path';
 import { randomBytes } from 'node:crypto';
 import { getDb } from './db';
@@ -17,6 +18,14 @@ async function loadSharp() {
     }
   }
   return sharpMod;
+}
+
+let magick: boolean | undefined;
+function hasImageMagick(): boolean {
+  if (magick === undefined) {
+    try { execFileSync('convert', ['-version'], { stdio: 'ignore' }); magick = true; } catch { magick = false; }
+  }
+  return magick;
 }
 
 export const UPLOAD_DIR = () => resolve(process.env.UPLOAD_DIR ?? 'var/uploads');
@@ -78,6 +87,30 @@ export async function saveUpload(file: File, userId: number, alt = ''): Promise<
           variants[key] = `/uploads/${sub}/${vname}`;
         }
       }
+    }
+  } else if (type.mime.startsWith('image/') && type.ext !== 'gif' && hasImageMagick()) {
+    // Fallback for servers where sharp cannot run: ImageMagick strips metadata and makes variants.
+    const tmp = join(dir, `${name}.upload`);
+    writeFileSync(tmp, buf);
+    try {
+      const out = join(dir, `${name}.${type.ext === 'png' ? 'png' : 'jpg'}`);
+      execFileSync('convert', [tmp, '-auto-orient', '-strip', '-resize', '2400x2400>', '-quality', '85', out]);
+      storedBuf = readFileSync(out);
+      storedExt = type.ext === 'png' ? 'png' : 'jpg';
+      unlinkSync(out);
+      const dims = execFileSync('identify', ['-format', '%w %h', tmp]).toString().split(' ').map(Number);
+      [width, height] = dims;
+      for (const [key, w] of [['thumb', 400], ['medium', 1024], ['large', 1600]] as const) {
+        if (!width || width > w) {
+          const vname = `${name}-${key}.jpg`;
+          execFileSync('convert', [tmp, '-auto-orient', '-strip', '-resize', `${w}x>`, '-quality', '80', join(dir, vname)]);
+          variants[key] = `/uploads/${sub}/${vname}`;
+        }
+      }
+    } catch (e) {
+      console.error('ImageMagick processing failed; storing original:', (e as Error).message);
+    } finally {
+      unlinkSync(tmp);
     }
   }
 

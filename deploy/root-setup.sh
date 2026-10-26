@@ -6,6 +6,9 @@ DOMAIN=shapeproject.ouk.ac.ke
 APP_USER=wabwire
 APP=/home/$APP_USER/shapeproject
 
+# 0. Image tools (this VM's CPU cannot run sharp; the CMS falls back to ImageMagick)
+DEBIAN_FRONTEND=noninteractive apt-get install -y -qq imagemagick >/dev/null
+
 # 1. systemd service (runs as the app user, restarts on failure, starts at boot)
 cat > /etc/systemd/system/shape.service <<UNIT
 [Unit]
