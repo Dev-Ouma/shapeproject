@@ -21,6 +21,11 @@ if [ ! -d "$REL" ]; then
   PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1 npm ci --no-audit --no-fund --loglevel=error
   npm run build --silent
   npm prune --omit=dev --no-audit --no-fund --loglevel=error
+  # Older CPUs (no x86-64-v2) cannot run sharp's native build: add its WebAssembly build.
+  if ! node -e "require('sharp')" 2>/dev/null; then
+    npm install --no-save --no-audit --no-fund --loglevel=error --cpu=wasm32 @img/sharp-wasm32@0.35.5
+    node -e "require('sharp')" && echo "sharp: using WebAssembly build"
+  fi
 fi
 
 # Back up the database before switching (consistent snapshot).
@@ -34,13 +39,18 @@ ln -sfn "$REL" "$APP/current"
 if systemctl list-unit-files shape.service >/dev/null 2>&1 && systemctl list-unit-files | grep -q '^shape.service'; then
   sudo -n systemctl restart shape 2>/dev/null || { echo "Run: sudo systemctl restart shape"; }
 else
-  # Before the systemd unit exists: run in the background as this user.
-  pkill -f "$APP/.*/dist/server/entry.mjs" 2>/dev/null || true
-  (set -a; . "$APP/shared/.env"; set +a; cd "$APP/current" && setsid nohup node dist/server/entry.mjs >> "$APP/shared/app.log" 2>&1 < /dev/null &)
+  # Before the systemd unit exists: run in the background as this user (tracked by pid file).
+  if [ -f "$APP/shared/app.pid" ]; then kill "$(cat "$APP/shared/app.pid")" 2>/dev/null || true; fi
+  for pid in $(pgrep -u "$(id -u)" -f 'dist/server/entry.mjs'); do
+    case "$(readlink -f /proc/$pid/cwd)" in "$APP"/*) kill "$pid" 2>/dev/null || true ;; esac
+  done
+  sleep 1
+  (set -a; . "$APP/shared/.env"; set +a; cd "$APP/current" && setsid nohup node dist/server/entry.mjs >> "$APP/shared/app.log" 2>&1 < /dev/null & echo $! > "$APP/shared/app.pid")
 fi
 
 for i in $(seq 1 30); do curl -fsS -o /dev/null "http://127.0.0.1:${PORT:-4321}/" && break; sleep 1; done
-if curl -fsS -o /dev/null "http://127.0.0.1:${PORT:-4321}/"; then
+LIVE=$(pgrep -u "$(id -u)" -f 'dist/server/entry.mjs' | while read -r p; do readlink -f /proc/$p/cwd; done | sort -u)
+if curl -fsS -o /dev/null "http://127.0.0.1:${PORT:-4321}/" && [ "$LIVE" = "$REL" ]; then
   echo "Release $SHA is live."
   ls -1dt "$APP"/releases/* | tail -n +6 | xargs -r rm -rf
 else

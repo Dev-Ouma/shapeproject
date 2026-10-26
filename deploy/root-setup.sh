@@ -30,7 +30,9 @@ LimitNOFILE=65536
 [Install]
 WantedBy=multi-user.target
 UNIT
-pkill -u $APP_USER -f "$APP/.*/dist/server/entry.mjs" || true
+[ -f $APP/shared/app.pid ] && kill "$(cat $APP/shared/app.pid)" 2>/dev/null || true
+pkill -u $APP_USER -f "dist/server/entry.mjs" || true
+sleep 1
 systemctl daemon-reload
 systemctl enable --now shape
 # Let the app user restart its own service during deploys (nothing else).
