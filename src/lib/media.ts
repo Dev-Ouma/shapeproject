@@ -2,8 +2,22 @@
 import { mkdirSync, writeFileSync, unlinkSync, existsSync } from 'node:fs';
 import { join, resolve, extname } from 'node:path';
 import { randomBytes } from 'node:crypto';
-import sharp from 'sharp';
 import { getDb } from './db';
+
+// sharp is loaded on first use (native build, or its WebAssembly build on older CPUs),
+// so pages that never resize images do not depend on it.
+let sharpMod: typeof import('sharp') | null | undefined;
+async function loadSharp() {
+  if (sharpMod === undefined) {
+    try {
+      sharpMod = (await import('sharp')).default as unknown as typeof import('sharp');
+    } catch (e) {
+      console.error('Image processing unavailable (sharp failed to load); storing originals:', (e as Error).message.split('\n')[0]);
+      sharpMod = null;
+    }
+  }
+  return sharpMod;
+}
 
 export const UPLOAD_DIR = () => resolve(process.env.UPLOAD_DIR ?? 'var/uploads');
 export const MAX_UPLOAD_BYTES = 20 * 1024 * 1024;
@@ -47,8 +61,9 @@ export async function saveUpload(file: File, userId: number, alt = ''): Promise<
   let storedExt = type.ext;
   let storedBuf = buf;
 
-  if (type.mime.startsWith('image/')) {
-    const img = sharp(buf, { animated: type.ext === 'gif' }).rotate();
+  const sharp = type.mime.startsWith('image/') ? await loadSharp() : null;
+  if (sharp) {
+    const img = (sharp as any)(buf, { animated: type.ext === 'gif' }).rotate();
     const meta = await img.metadata();
     width = meta.width ?? null;
     height = meta.pageHeight ?? meta.height ?? null;
