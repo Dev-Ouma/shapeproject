@@ -7,8 +7,29 @@ const { events, workPackages, currentMonth: CURRENT_PROJECT_MONTH, projectMonths
 const wpStatus = (w: { start: number; end: number }) => _wpStatus(w, CURRENT_PROJECT_MONTH);
 
 const months = Array.from({ length: PROJECT_MONTHS }, (_, i) => i + 1);
-const monthName = (m: number) => new Date(Date.UTC(2025, m - 1, 1)).toLocaleDateString('en-GB', { month: 'short', timeZone: 'UTC' });
-const years = [2025, 2026, 2027];
+// Real calendar dates: Month 1 is the month of the project start date.
+const start0 = new Date(projectStart + 'T00:00:00Z');
+const monthDate = (m: number) => new Date(Date.UTC(start0.getUTCFullYear(), start0.getUTCMonth() + m - 1, 1));
+const endOfMonth = (d: Date) => new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth() + 1, 0));
+const shortMonth = (d: Date) => d.toLocaleDateString('en-GB', { month: 'short', timeZone: 'UTC' });
+const longMonth = (d: Date) => d.toLocaleDateString('en-GB', { month: 'long', year: 'numeric', timeZone: 'UTC' });
+const fmtDay = (d: Date) => d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC' });
+const yearSpans = months.reduce<{ year: number; months: number }[]>((acc, m) => {
+  const y = monthDate(m).getUTCFullYear();
+  const last = acc[acc.length - 1];
+  if (last?.year === y) last.months++;
+  else acc.push({ year: y, months: 1 });
+  return acc;
+}, []);
+// Fractional position (0–1) of a date on the timeline.
+const frac = (d: Date) => {
+  const mi = (d.getUTCFullYear() - start0.getUTCFullYear()) * 12 + d.getUTCMonth() - start0.getUTCMonth();
+  const days = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth() + 1, 0)).getUTCDate();
+  return Math.min(Math.max((mi + (d.getUTCDate() - 1) / days) / PROJECT_MONTHS, 0), 1);
+};
+const pos = (iso: string) => `${frac(new Date((iso.length === 7 ? iso + '-15' : iso) + 'T00:00:00Z')) * 100}%`;
+const today = new Date();
+const todayFrac = frac(today);
 const pct = Math.round((CURRENT_PROJECT_MONTH / PROJECT_MONTHS) * 100);
 const col = (m: number) => `${((m - 1) / PROJECT_MONTHS) * 100}%`;
 const width = (s: number, e: number) => `${((e - s + 1) / PROJECT_MONTHS) * 100}%`;
@@ -24,7 +45,7 @@ const fmt = (iso: string) =>
 const day = (iso: string) => (iso.length === 7 ? '—' : String(new Date(iso + 'T00:00:00Z').getUTCDate()));
 const mon = (iso: string) => new Date((iso.length === 7 ? iso + '-01' : iso) + 'T00:00:00Z').toLocaleDateString('en-GB', { month: 'short', timeZone: 'UTC' });
 const yr = (iso: string) => iso.slice(0, 4);
-const typeIcon = { Meeting: 'Users', Launch: 'Rocket', Hackathon: 'Code', Training: 'GraduationCap', Pilot: 'FlaskConical' } as const;
+const typeIcon = { Meeting: 'Users', Launch: 'Rocket', Hackathon: 'Code', Training: 'GraduationCap', Pilot: 'FlaskConical', Conference: 'Mic', Workshop: 'Presentation' } as const;
 ---
 
 <Base title="Events" description="SHAPE events, milestones and the 36-month project timeline.">
@@ -57,52 +78,81 @@ const typeIcon = { Meeting: 'Users', Launch: 'Rocket', Hackathon: 'Code', Traini
         <p>Work Packages across the 36 months, with deliverable deadlines and events. Hover a bar or marker for details.</p>
       </header>
 
-      <div class="gantt-scroll" tabindex="0" aria-label="Project Gantt chart, scrollable">
-        <div class="gantt" style={`--months:${PROJECT_MONTHS}`}>
-          <div class="gantt__label gantt__corner"></div>
-          <div class="gantt__years">
-            {years.map((y) => <span>{y}</span>)}
+      <div class="gantt-scroll" tabindex="0" aria-label="Project Gantt chart with real dates, scrollable">
+        <div class="gx" style={`--months:${PROJECT_MONTHS}`}>
+          <div class="gx__corner gx__corner--top">Work package</div>
+          <div class="gx__years" style={`grid-template-columns:${yearSpans.map((y) => `${y.months}fr`).join(' ')}`}>
+            {yearSpans.map((y) => <span>{y.year}</span>)}
           </div>
-          <div class="gantt__label gantt__corner"></div>
-          <div class="gantt__months">
-            {months.map((m) => <span class:list={{ 'is-now': m === CURRENT_PROJECT_MONTH }} title={`Month ${m}`}>{monthName(m)[0]}</span>)}
+          <div class="gx__corner">Lead · dates</div>
+          <div class="gx__quarters" style={`grid-template-columns:repeat(${PROJECT_MONTHS}, 1fr)`}>
+            {months.map((m) => {
+              const d = monthDate(m);
+              return <span class:list={{ 'is-q': d.getUTCMonth() % 3 === 0, 'is-now': m === CURRENT_PROJECT_MONTH }} title={`${longMonth(d)} · Month ${m}`}>{shortMonth(d)}</span>;
+            })}
           </div>
 
-          {workPackages.map((w) => {
+          {workPackages.map((w, wi) => {
             const s = wpStatus(w);
+            const down = wi < 2 ? ' gx__tip--down' : '';
             const done = Math.min(Math.max(CURRENT_PROJECT_MONTH - w.start + 1, 0), w.end - w.start + 1);
+            const startD = monthDate(w.start);
+            const endD = monthDate(w.end);
+            const due = endOfMonth(endD);
             return (
               <Fragment>
-                <div class="gantt__label" style={`--wp:${w.color}`}><b>WP{w.wp}</b><span>{w.lead}</span></div>
-                <div class="gantt__track">
-                  <div class="gantt__bar" style={`--wp:${w.color};--wp-tint:${w.tint};left:${col(w.start)};width:${width(w.start, w.end)};--done:${(done / (w.end - w.start + 1)) * 100}%`} tabindex="0">
-                    <span class="gantt__bar-text">{w.title}</span>
-                    <span class="gantt__tip"><b>WP{w.wp} · {statusLabel[s]}</b>{w.title}<br />M{w.start}–M{w.end} · Lead: {w.lead}<br />{w.deliverables.length} deliverables</span>
+                <div class="gx__label" style={`--wp:${w.color};--wp-tint:${w.tint}`}>
+                  <span class="gx__wp">WP{w.wp}</span>
+                  <div>
+                    <strong>{w.title}</strong>
+                    <span>{w.lead}</span>
+                    <span class="gx__dates">{shortMonth(startD)} {startD.getUTCFullYear()} – {shortMonth(endD)} {endD.getUTCFullYear()}</span>
                   </div>
-                  <span class="gantt__diamond" style={`--wp:${w.color};left:${col(w.end)}`} tabindex="0">
-                    <span class="gantt__tip"><b>Due M{w.end}</b>{w.deliverables.map((d) => d.code).join(', ')}</span>
+                </div>
+                <div class="gx__track">
+                  <div class="gx__bar" style={`--wp:${w.color};--wp-tint:${w.tint};left:${col(w.start)};width:${width(w.start, w.end)};--done:${(done / (w.end - w.start + 1)) * 100}%`} tabindex="0" aria-label={`WP${w.wp}: ${longMonth(startD)} to ${longMonth(endD)}`}>
+                    <span class={`gx__tip${down}`}>
+                      <b>WP{w.wp} · {w.title}</b>
+                      <em class={`status status--${s}`}>{statusLabel[s]}</em>
+                      <span><Lucide name="CalendarDays" size={13} /> {fmtDay(startD)} – {fmtDay(due)}</span>
+                      <span><Lucide name="Clock" size={13} /> {w.end - w.start + 1} months (M{w.start}–M{w.end}) · {Math.round((done / (w.end - w.start + 1)) * 100)}% elapsed</span>
+                      <span><Lucide name="House" size={13} /> Lead: {w.lead}</span>
+                    </span>
+                  </div>
+                  <span class="gx__milestone" style={`--wp:${w.color};left:calc(${col(w.end)} + ${100 / PROJECT_MONTHS}%)`} tabindex="0" aria-label={`Deliverables due ${fmtDay(due)}`}>
+                    <span class={`gx__tip gx__tip--right${down}`}>
+                      <b>Deliverables due {fmtDay(due)}</b>
+                      {w.deliverables.map((d) => <span><strong>{d.code}</strong> {d.desc}</span>)}
+                    </span>
                   </span>
                 </div>
               </Fragment>
             );
           })}
 
-          <div class="gantt__label"><b>Events</b><span>held &amp; planned</span></div>
-          <div class="gantt__track gantt__track--events">
+          <div class="gx__label gx__label--events"><span class="gx__wp gx__wp--ev"><Lucide name="Flag" size={14} /></span><div><strong>Events</strong><span>Held and planned</span></div></div>
+          <div class="gx__track gx__track--events">
             {events.map((e) => (
-              <span class:list={['gantt__event', { 'is-planned': e.planned }]} style={`left:${col(e.month)}`} tabindex="0">
-                <Lucide name={typeIcon[e.type]} size={14} />
-                <span class="gantt__tip"><b>{e.title}</b>{fmt(e.start)}{e.end ? ` – ${fmt(e.end)}` : ''}<br />{e.location}{e.planned ? ' · planned' : ''}</span>
+              <span class:list={['gx__event', { 'is-planned': e.planned }]} style={`left:${pos(e.start)}`} tabindex="0" aria-label={`${e.title}, ${fmt(e.start)}`}>
+                <Lucide name={typeIcon[e.type as keyof typeof typeIcon] ?? 'Calendar'} size={13} />
+                <span class="gx__tip">
+                  <b>{e.title}</b>
+                  <span><Lucide name="CalendarDays" size={13} /> {e.planned ? `${fmt(e.start)}${e.end ? ` – ${fmt(e.end)}` : ''} (dates to be confirmed)` : `${fmt(e.start)}${e.end ? ` – ${fmt(e.end)}` : ''}`}</span>
+                  <span><Lucide name="MapPin" size={13} /> {e.location}</span>
+                  <em class={`status status--${e.planned ? 'upcoming' : 'done'}`}>{e.planned ? 'Planned' : 'Held'} · {e.type}</em>
+                </span>
               </span>
             ))}
           </div>
 
-          <div class="gantt__now" style={`left:calc(var(--label-w) + (100% - var(--label-w)) * ${(CURRENT_PROJECT_MONTH - 0.5) / PROJECT_MONTHS})`}><span>Today</span></div>
+          <div class="gx__now" style={`left:calc(var(--label-w) + (100% - var(--label-w) - var(--pad-r)) * ${todayFrac})`}>
+            <span>Today · {fmtDay(today)}</span>
+          </div>
         </div>
       </div>
       <ul class="gantt-legend">
-        <li><i class="lg-bar"></i> Work Package (filled part = elapsed)</li>
-        <li><i class="lg-diamond"></i> Deliverables due</li>
+        <li><i class="lg-bar"></i> Work package (solid = elapsed)</li>
+        <li><i class="lg-diamond"></i> Deliverables due (end of month)</li>
         <li><i class="lg-event"></i> Event held</li>
         <li><i class="lg-event lg-event--planned"></i> Event planned</li>
         <li><i class="lg-now"></i> Today</li>

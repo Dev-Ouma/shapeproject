@@ -12,5 +12,7 @@ export default defineConfig({
   adapter: node({ mode: 'standalone' }),
   security: { checkOrigin: true, allowedDomains: hosts.map((hostname) => ({ hostname })) },
   devToolbar: { enabled: false },
-  vite: { ssr: { external: ['sharp'] } },
+  build: { inlineStylesheets: 'never' },
+  // Never inline scripts into HTML, so the CSP can forbid inline scripts entirely.
+  vite: { ssr: { external: ['sharp'] }, build: { assetsInlineLimit: 0 } },
 });

@@ -1,9 +1,10 @@
-node_modules/
-dist/
 .astro/
 .DS_Store
-reference/
 .env
 *.db
 *.db-*
+dist/
+node_modules/
+reference/
 uploads/
+var/

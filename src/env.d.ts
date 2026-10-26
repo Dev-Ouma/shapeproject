@@ -3,5 +3,6 @@
 declare namespace App {
   interface Locals {
     user?: import('./lib/auth').User;
+    pendingUser?: import('./lib/auth').User;
   }
 }

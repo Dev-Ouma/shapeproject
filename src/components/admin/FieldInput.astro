@@ -96,7 +96,7 @@ const isImage = (v: string) => /\.(png|jpe?g|webp|gif|svg)$/i.test(v);
       <label for={id}>{f.label} {required && <span class="a-req">*</span>}</label>
     )}
 
-    {f.type === 'text' || f.type === 'icon' ? <input id={id} type="text" name={name} value={value ?? ''} required={required && !inTemplate} maxlength={'max' in f ? f.max : undefined} data-title-source /> : null}
+    {f.type === 'text' || f.type === 'icon' || f.type === 'link' ? <input id={id} type="text" name={name} value={value ?? ''} required={required && !inTemplate} maxlength={'max' in f ? f.max : undefined} data-title-source /> : null}
     {f.type === 'email' && <input id={id} type="email" name={name} value={value ?? ''} required={required && !inTemplate} />}
     {f.type === 'url' && <input id={id} type="url" name={name} value={value ?? ''} required={required && !inTemplate} placeholder="https://" />}
     {f.type === 'number' && <input id={id} type="number" name={name} value={value ?? ''} required={required && !inTemplate} min={f.min} max={f.max} />}

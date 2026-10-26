@@ -213,3 +213,63 @@ describe('engagement', () => {
     expect(eng.throttled('9.9.9.9')).toBe(true);
   });
 });
+
+import * as otp from '../../src/lib/otp';
+
+describe('one-time passwords', () => {
+  beforeEach(() => { resetDbForTests(); content.resetContentForTests(); });
+
+  it('matches the RFC 6238 test vector and round-trips base32', () => {
+    const secret = otp.base32Encode(Buffer.from('12345678901234567890'));
+    expect(secret).toBe('GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ');
+    expect(otp.base32Decode(secret).toString()).toBe('12345678901234567890');
+    expect(otp.totpAt(secret, 1)).toBe('287082'); // T = 59 s
+    expect(otp.totpAt(secret, 37037036)).toBe('081804'); // T = 1111111109 s
+  });
+
+  it('accepts ±1 step of clock drift only', () => {
+    const s = otp.generateSecret();
+    const now = Date.now();
+    const step = otp.currentStep(now);
+    expect(otp.verifyTotp(s, otp.totpAt(s, step), now)).toBe(step);
+    expect(otp.verifyTotp(s, otp.totpAt(s, step - 1), now)).toBe(step - 1);
+    expect(otp.verifyTotp(s, otp.totpAt(s, step + 5), now)).toBeNull();
+    expect(otp.verifyTotp(s, 'abcdef', now)).toBeNull();
+  });
+
+  it('enrols, blocks code replay, and uses recovery codes once', () => {
+    const id = auth.createUser('o@b.org', 'O', 'admin', 'letters-and-123');
+    const secret = otp.beginEnrolment(id);
+    expect(otp.otpEnabled(id)).toBe(false);
+    expect(otp.confirmEnrolment(id, '000000')).toBeNull();
+    const step = otp.currentStep();
+    const codes = otp.confirmEnrolment(id, otp.totpAt(secret, step - 1));
+    expect(codes).toHaveLength(8);
+    expect(otp.otpEnabled(id)).toBe(true);
+    // The enrolment code cannot be replayed; a newer one works once.
+    expect(otp.verifyLoginCode(id, otp.totpAt(secret, step - 1))).toBeNull();
+    expect(otp.verifyLoginCode(id, otp.totpAt(secret, step))).toBe('totp');
+    expect(otp.verifyLoginCode(id, otp.totpAt(secret, step))).toBeNull();
+    expect(otp.verifyLoginCode(id, codes![0])).toBe('recovery');
+    expect(otp.verifyLoginCode(id, codes![0])).toBeNull();
+    expect(otp.recoveryCodesLeft(id)).toBe(7);
+    otp.resetOtp(id);
+    expect(otp.otpEnabled(id)).toBe(false);
+  });
+
+  it('sessions stay pending until the second factor is completed', () => {
+    process.env.REQUIRE_OTP = 'true';
+    try {
+      auth.createUser('p@b.org', 'P', 'editor', 'letters-and-123');
+      const r = auth.login('p@b.org', 'letters-and-123', { ip: '7', userAgent: '' });
+      expect(r.ok && r.needsOtp).toBe(true);
+      if (!r.ok) return;
+      expect(auth.userForSession(r.token)).toBeUndefined();
+      expect(auth.sessionInfo(r.token)?.mfaOk).toBe(false);
+      auth.completeMfa(r.token, r.user.id);
+      expect(auth.userForSession(r.token)?.email).toBe('p@b.org');
+    } finally {
+      process.env.REQUIRE_OTP = 'false';
+    }
+  });
+});

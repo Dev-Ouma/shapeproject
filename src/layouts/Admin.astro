@@ -84,6 +84,12 @@ const active = (href: string) => (href === '/admin' ? path === '/admin' || path 
       </div>
     </div>
     <script>
+      import '../scripts/password-toggle';
+      // Confirmation prompts for destructive buttons (no inline handlers, so CSP can forbid inline scripts).
+      document.addEventListener('click', (e) => {
+        const b = (e.target as HTMLElement).closest<HTMLElement>('[data-confirm]');
+        if (b && !confirm(b.dataset.confirm!)) e.preventDefault();
+      });
       const side = document.querySelector('[data-side]');
       document.querySelector('[data-menu]')?.addEventListener('click', () => side?.classList.toggle('is-open'));
       side?.addEventListener('click', (e) => { if (e.target === side) side.classList.remove('is-open'); });

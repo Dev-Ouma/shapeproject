@@ -14,8 +14,8 @@ if (Astro.request.method === 'POST') {
   const r = login(email, String(form.get('password') ?? ''), { ip: Astro.clientAddress, userAgent: Astro.request.headers.get('user-agent') ?? '' });
   if (r.ok) {
     Astro.cookies.set(SESSION_COOKIE, r.token, { path: '/', httpOnly: true, sameSite: 'lax', secure: Astro.url.protocol === 'https:', maxAge: sessionMaxAge });
-    audit(r.user.id, 'login');
-    return Astro.redirect(safeNext, 303);
+    audit(r.user.id, r.needsOtp ? 'login.password-ok' : 'login');
+    return Astro.redirect(r.needsOtp ? `/admin/otp?next=${encodeURIComponent(safeNext)}` : safeNext, 303);
   }
   error = r.error;
   Astro.response.status = 401;

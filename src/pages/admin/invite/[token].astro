@@ -17,7 +17,7 @@ if (invite && Astro.request.method === 'POST') {
       audit(user.id, 'invite.accepted', user.email);
       const r = login(user.email, pw, { ip: Astro.clientAddress, userAgent: Astro.request.headers.get('user-agent') ?? '' });
       if (r.ok) Astro.cookies.set(SESSION_COOKIE, r.token, { path: '/', httpOnly: true, sameSite: 'lax', secure: Astro.url.protocol === 'https:', maxAge: sessionMaxAge });
-      return Astro.redirect('/admin', 303);
+      return Astro.redirect(r.ok && r.needsOtp ? '/admin/otp' : '/admin', 303);
     }
   }
 }

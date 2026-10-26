@@ -1,6 +1,6 @@
 export const contact = {
-  phone: '+252613997777',
-  email: 'shape@mu.edu.so',
+  phone: '+254 722 214306',
+  email: 'shape@ouk.ac.ke',
 };
 
 export const socials = [
@@ -28,7 +28,7 @@ export const nav: NavItem[] = [
   { label: 'Project Team', href: '/project-team/' },
   { label: 'Materials', href: '/materials/' },
   { label: 'Events', href: '/events/' },
-  { label: 'Project Book', href: '/project-book/' },
+  { label: 'Executive Brief', href: '/project-book/' },
   { label: 'Contact', href: '/contact/' },
 ];
 
@@ -38,6 +38,12 @@ export const slides = [
     title: 'Empowering Universities to Shape Smarter Cities',
     text: 'SHAPE strengthens higher education institutions in East Africa by developing innovative curricula, building academic capacity, and fostering international collaboration to prepare the next generation of smart city leaders.',
     cta: { label: 'Learn More', href: '/about/' },
+  },
+  {
+    image: '/images/slider-ouk-city.jpg',
+    title: 'Bringing Smart City Education to Every Learner',
+    text: 'As lead of Work Package 2, the Open University of Kenya combines open, digital learning with research on East African cities — so students and professionals anywhere can gain the skills smart cities need.',
+    cta: { label: 'Meet Our Partners', href: '/partners/' },
   },
   {
     image: '/images/slider2.png',

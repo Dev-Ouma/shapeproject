@@ -28,7 +28,7 @@ const messages = listMessages();
         <input type="hidden" name="id" value={open.id} />
         <a class="a-btn" href={`mailto:${open.email}?subject=${encodeURIComponent('Re: ' + open.subject)}`}>Reply by email</a>
         <button class="a-btn a-btn--ghost" name="action" value="unread">Mark unread</button>
-        <button class="a-btn a-btn--danger" name="action" value="delete" onclick="return confirm('Delete this message?')">Delete</button>
+        <button class="a-btn a-btn--danger" name="action" value="delete" data-confirm="Delete this message?">Delete</button>
       </form>
     </div>
   )}

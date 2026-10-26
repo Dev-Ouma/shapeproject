@@ -1,12 +1,53 @@
 import { test, expect, type Page } from '@playwright/test';
+import { totpAt, currentStep } from '../../src/lib/otp';
 
 const ADMIN = { email: 'admin@test.local', password: 'Admin-pass-12345' };
 
-async function login(page: Page, email = ADMIN.email, password = ADMIN.password) {
+// Authenticator state per account: secret + last step used (codes cannot be replayed).
+const otpState = new Map<string, { secret: string; last: number }>();
+const sessions = new Map<string, Awaited<ReturnType<ReturnType<Page['context']>['cookies']>>>();
+
+async function nextCode(email: string, page: Page): Promise<string> {
+  const st = otpState.get(email)!;
+  for (;;) {
+    const now = currentStep();
+    const step = [now - 1, now, now + 1].find((s) => s > st.last);
+    if (step !== undefined) { st.last = step; return totpAt(st.secret, step); }
+    await page.waitForTimeout(1000);
+  }
+}
+
+/** Complete the OTP step: enrol on first login (reads the manual key), else enter the next code. */
+async function passOtp(page: Page, email: string) {
+  await expect(page).toHaveURL(/\/admin\/otp/);
+  const secretEl = page.locator('[data-secret]');
+  if (await secretEl.count()) {
+    otpState.set(email, { secret: (await secretEl.textContent())!.replace(/\s/g, ''), last: 0 });
+    await page.fill('#code', await nextCode(email, page));
+    await page.click('form:has(#code) button[type=submit]');
+    await expect(page.getByRole('heading', { name: 'Two-step sign-in is on' })).toBeVisible();
+    await page.getByRole('link', { name: /continue/ }).click();
+  } else {
+    await page.fill('#code', await nextCode(email, page));
+    await page.click('form:has(#code) button[type=submit]');
+  }
+}
+
+/** Sign in (password + OTP). Re-uses the session cookie of an earlier login for the same account. */
+async function login(page: Page, email = ADMIN.email, password = ADMIN.password, fresh = false) {
+  const cached = sessions.get(email);
+  if (cached && !fresh) {
+    await page.context().addCookies(cached);
+    await page.goto('/admin');
+    if (!/\/admin\/login/.test(page.url())) return;
+  }
   await page.goto('/admin/login');
   await page.fill('#email', email);
   await page.fill('#password', password);
   await page.click('button[type=submit]');
+  await passOtp(page, email);
+  await expect(page).not.toHaveURL(/\/admin\/(login|otp)/);
+  sessions.set(email, (await page.context().cookies()).filter((c) => c.name === 'shape_session'));
 }
 
 async function logout(page: Page) {
@@ -44,8 +85,41 @@ test('admin requires login and rejects wrong passwords', async ({ page }) => {
   // Correct login returns to the requested page.
   await page.fill('#password', ADMIN.password);
   await page.click('button[type=submit]');
+  // First sign-in: two-step setup is mandatory before any admin page opens.
+  await expect(page.getByRole('heading', { name: 'Set up two-step sign-in' })).toBeVisible();
+  await expect(page.locator('.a-qr svg')).toBeVisible();
+  expect((await page.request.get('/admin/content/posts', { maxRedirects: 0 })).headers()['location']).toBe('/admin/otp');
+  await page.fill('#code', '000000');
+  await page.click('form:has(#code) button[type=submit]');
+  await expect(page.getByRole('alert')).toContainText('did not match');
+  await passOtp(page, ADMIN.email);
   await expect(page).toHaveURL(/\/admin\/content\/posts$/);
   await expect(page.getByRole('heading', { name: 'News posts' })).toBeVisible();
+  sessions.set(ADMIN.email, (await page.context().cookies()).filter((c) => c.name === 'shape_session'));
+});
+
+test('second sign-in asks for the authenticator code and rejects reused codes', async ({ page }) => {
+  await page.goto('/admin/login');
+  await page.fill('#email', ADMIN.email);
+  await page.fill('#password', ADMIN.password);
+  await page.click('button[type=submit]');
+  await expect(page.getByRole('heading', { name: 'Enter your verification code' })).toBeVisible();
+  const st = otpState.get(ADMIN.email)!;
+  await page.fill('#code', totpAt(st.secret, st.last)); // already used
+  await page.click('form:has(#code) button[type=submit]');
+  await expect(page.getByRole('alert')).toContainText('Invalid or already used code');
+  await passOtp(page, ADMIN.email);
+  await expect(page).toHaveURL(/\/admin$/);
+});
+
+test('password field has a show/hide toggle', async ({ page }) => {
+  await page.goto('/admin/login');
+  await page.fill('#password', 'secret-value-1');
+  const toggle = page.getByRole('button', { name: 'Show password' });
+  await toggle.click();
+  await expect(page.locator('#password')).toHaveAttribute('type', 'text');
+  await page.getByRole('button', { name: 'Hide password' }).click();
+  await expect(page.locator('#password')).toHaveAttribute('type', 'password');
 });
 
 test('login is locked after repeated failures', async ({ page }) => {
@@ -68,7 +142,7 @@ test('editing a hero slide updates the home page', async ({ page }) => {
   await page.click('button[value=save]');
   await expect(page.getByText('Saved. Changes are live on the site.')).toBeVisible();
   await page.goto('/');
-  await expect(page.locator('.hero__slide.is-active h2')).toHaveText('Empowering Universities — E2E Edit');
+  await expect(page.locator('.hero__slide.is-active h2')).toHaveAttribute('aria-label', 'Empowering Universities — E2E Edit');
   // Restore.
   await page.goto('/admin/content/slides');
   await page.getByRole('link', { name: 'Empowering Universities — E2E Edit' }).click();
@@ -272,6 +346,7 @@ test('editor invite: accept, edit content, blocked from admin-only areas', async
   await editor.fill('#password', 'Editor-pass-6789');
   await editor.fill('#confirm', 'Editor-pass-6789');
   await editor.click('button[type=submit]');
+  await passOtp(editor, 'edna@test.local');
   await expect(editor).toHaveURL(/\/admin$/);
   await expect(editor.locator('.a-role').first()).toHaveText('editor');
 
@@ -328,7 +403,7 @@ test('admin JSON API rejects cross-origin requests', async ({ page }) => {
 
 test('logout ends the session', async ({ page }) => {
   await login(page);
-  await expect(page).toHaveURL(/\/admin$/);
+  await page.goto('/admin');
   await logout(page);
   await page.goto('/admin');
   await expect(page).toHaveURL(/\/admin\/login/);

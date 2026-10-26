@@ -1,5 +1,6 @@
 ---
 import Admin from '../../layouts/Admin.astro';
+import { otpEnabled, recoveryCodesLeft } from '../../lib/otp';
 import { findUserByEmail, verifyPassword, passwordProblem, setPassword, audit, updateUser, logoutOthers, SESSION_COOKIE } from '../../lib/auth';
 
 const me = Astro.locals.user!;
@@ -47,5 +48,10 @@ if (Astro.request.method === 'POST') {
       <div class="a-field"><label for="confirm">Confirm new password</label><input id="confirm" type="password" name="confirm" autocomplete="new-password" required /></div>
       <button class="a-btn" type="submit">Change password</button>
     </form>
+    <div class="a-card">
+      <h3>Two-step sign-in</h3>
+      <p>{otpEnabled(me.id) ? <Fragment><span class="a-pill a-pill--published">on</span> · {recoveryCodesLeft(me.id)} recovery codes left</Fragment> : <span class="a-pill a-pill--draft">not set up</span>}</p>
+      <p class="a-help">Lost your phone or running out of recovery codes? Ask an administrator to reset two-step sign-in; you will set it up again at your next login.</p>
+    </div>
   </div>
 </Admin>

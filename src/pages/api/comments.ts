@@ -1,6 +1,7 @@
 import type { APIRoute } from 'astro';
 import { addComment, throttled } from '../../lib/engagement';
 import { loadSite } from '../../lib/content';
+import { notify } from '../../lib/mail';
 
 export const POST: APIRoute = async ({ request, clientAddress, redirect }) => {
   const form = await request.formData();
@@ -19,5 +20,6 @@ export const POST: APIRoute = async ({ request, clientAddress, redirect }) => {
     body: String(form.get('comment') ?? ''),
     ip: clientAddress,
   });
+  if (r.ok) notify(loadSite().contact.email, `[SHAPE website] New comment awaiting review`, `${String(form.get('author'))} commented on "${post.title}":\n\n${String(form.get('comment'))}\n\nReview it at /admin/comments`);
   return back(r.ok ? 'pending' : 'error');
 };

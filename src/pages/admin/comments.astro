@@ -38,7 +38,7 @@ const tabs = [['pending', 'Pending'], ['approved', 'Approved'], ['spam', 'Spam']
                 {c.status !== 'approved' && <button class="a-btn a-btn--sm" name="action" value="approved">Approve</button>}
                 {c.status === 'approved' && <button class="a-btn a-btn--ghost a-btn--sm" name="action" value="pending">Unapprove</button>}
                 {c.status !== 'spam' && <button class="a-btn a-btn--ghost a-btn--sm" name="action" value="spam">Spam</button>}
-                <button class="a-btn a-btn--danger a-btn--sm" name="action" value="delete" onclick="return confirm('Delete this comment?')">Delete</button>
+                <button class="a-btn a-btn--danger a-btn--sm" name="action" value="delete" data-confirm="Delete this comment?">Delete</button>
               </form>
             </td>
           </tr>

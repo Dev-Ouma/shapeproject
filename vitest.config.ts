@@ -1,2 +1,2 @@
 import { defineConfig } from 'vitest/config';
-export default defineConfig({ test: { include: ['tests/unit/**/*.test.ts'], environment: 'node', env: { DB_PATH: ':memory:' } } });
+export default defineConfig({ test: { include: ['tests/unit/**/*.test.ts'], environment: 'node', env: { DB_PATH: ':memory:', REQUIRE_OTP: 'false' } } });

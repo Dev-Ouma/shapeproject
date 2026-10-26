@@ -5,6 +5,7 @@ import PageHero from '../components/PageHero.astro';
 import Icon from '../components/Icon.astro';
 const { contact, socials } = loadSite();
 const sent = Astro.url.searchParams.get('sent');
+const tel = contact.phone.replace(/[^+\d]/g, '');
 ---
 
 <Base title="Contact">
@@ -13,7 +14,7 @@ const sent = Astro.url.searchParams.get('sent');
     <div class="container contact">
       <div class="contact__info">
         <a class="card contact__item" href={`mailto:${contact.email}`}><Icon name="mail" size={22} /><span><strong>Email</strong>{contact.email}</span></a>
-        <a class="card contact__item" href={`tel:${contact.phone}`}><Icon name="phone" size={22} /><span><strong>Phone</strong>{contact.phone}</span></a>
+        <a class="card contact__item" href={`tel:${tel}`}><Icon name="phone" size={22} /><span><strong>Phone</strong>{contact.phone}</span></a>
         <ul class="social social--lg">
           {socials.map((s) => <li><a href={s.href} aria-label={s.name} target="_blank" rel="noopener"><Icon name={s.icon} size={20} /></a></li>)}
         </ul>

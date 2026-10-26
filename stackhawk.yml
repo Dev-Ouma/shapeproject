@@ -1,0 +1,61 @@
+# HawkScan DAST config for the SHAPE site + CMS (Astro SSR).
+# Local run:  rm -rf var/hawk && HOST=127.0.0.1 PORT=4400 DB_PATH=var/hawk/db.sqlite UPLOAD_DIR=var/hawk/up \
+#   BOOTSTRAP_ADMIN_EMAIL=scan@test.local BOOTSTRAP_ADMIN_PASSWORD=Scan-pass-12345 node dist/server/entry.mjs
+#   SCAN_USER=scan@test.local SCAN_PASS=Scan-pass-12345 hawk scan
+# Assumption: server-rendered HTML site (no REST spec); spider discovers routes from links and forms.
+app:
+  applicationId: ${APP_ID:3869a2c8-999f-4cb3-a56e-c21cfbecc6b3}
+  env: ${APP_ENV:Production}
+  host: ${APP_HOST:http://localhost:4400}
+  excludePaths:
+    - "/admin/logout.*"       # would end the scan session
+    - "/admin/book.*"         # spawns a headless browser to render the PDF
+    - "/uploads/.*"
+    - "/_astro/.*"
+  authentication:
+    loginPagePath: /admin/login
+    usernamePassword:
+      type: FORM
+      loginPath: /admin/login
+      usernameField: email
+      passwordField: password
+      scanUsername: ${SCAN_USER:scan@test.local}
+      scanPassword: ${SCAN_PASS:}
+    cookieAuthorization:
+      cookieNames:
+        - shape_session
+    loggedInIndicator: "Log out"
+    loggedOutIndicator: "Sign in to SHAPE CMS"
+    testPath:
+      path: /admin
+      success: ".*200.*"
+      requestMethod: GET
+hawk:
+  spider:
+    base: true
+    maxDurationMinutes: 6
+    seedPaths:
+      - /admin
+      - /admin/content/posts
+      - /admin/content/events
+      - /admin/media
+      - /admin/comments
+      - /admin/messages
+      - /admin/users
+      - /contact/
+      - /news/shape-project-officially-launches/
+      - /search/?s=smart
+hawkAddOn:
+  replacer:
+    rules:
+      # Astro rejects form POSTs without a same-origin Origin header.
+      - matchString: Origin
+        replacement: ${APP_HOST:http://localhost:4400}
+        isMatchRegex: false
+tags:
+  - name: _STACKHAWK_AGENT
+    value: ${HAWK_AGENT:none}
+  - name: _STACKHAWK_GIT_COMMIT_SHA
+    value: ${COMMIT_SHA:none}
+  - name: _STACKHAWK_GIT_BRANCH
+    value: ${BRANCH_NAME:none}

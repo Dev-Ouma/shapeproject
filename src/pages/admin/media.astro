@@ -37,7 +37,7 @@ const usage = current ? mediaUsage(current.path) : [];
         <p class="a-help">{current.path} · {Math.round(current.size / 1024)} KB{current.width && ` · ${current.width}×${current.height}`} · used in {usage.length} place(s)</p>
         <div style="display:flex;gap:8px;margin-bottom:10px"><input class="a-input" readonly value={current.path} data-copy-src /><button class="a-btn a-btn--ghost a-btn--sm" type="button" data-copy>Copy path</button></div>
         <form method="post" class="a-field" style="margin-bottom:10px"><input type="hidden" name="id" value={current.id} /><input type="hidden" name="action" value="alt" /><label for="alt">Alt text (describes the image for screen readers)</label><div style="display:flex;gap:8px"><input id="alt" name="alt" value={current.alt} class="a-input" /><button class="a-btn a-btn--sm">Save</button></div></form>
-        <form method="post"><input type="hidden" name="id" value={current.id} /><button class="a-btn a-btn--danger a-btn--sm" name="action" value="delete" onclick="return confirm('Delete this file?')">Delete file</button></form>
+        <form method="post"><input type="hidden" name="id" value={current.id} /><button class="a-btn a-btn--danger a-btn--sm" name="action" value="delete" data-confirm="Delete this file?">Delete file</button></form>
       </div>
     </div>
   )}

@@ -1,6 +1,7 @@
 ---
 import { loadSite } from '../lib/content';
 import Base from '../layouts/Base.astro';
+import { safeJson } from '../lib/json';
 const { posts: news, aboutParagraphs, thematicAreas, targetGroups, impacts, workPackages, partners, facts } = loadSite();
 
 // Static site: build a search index at build time and filter it in the browser.
@@ -20,7 +21,7 @@ const index = [
     </header>
     <div class="page-content" data-results></div>
   </div>
-  <script type="application/json" id="search-index" set:html={JSON.stringify(index)} />
+  <script type="application/json" id="search-index" set:html={safeJson(index)} />
   <script>
     type Entry = { title: string; href: string; image?: string; excerpt: string; body: string };
     const index: Entry[] = JSON.parse(document.getElementById('search-index')!.textContent!);

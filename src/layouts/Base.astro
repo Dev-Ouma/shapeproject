@@ -3,6 +3,7 @@ import { loadSite } from '../lib/content';
 import '../styles/global.css';
 import Icon from '../components/Icon.astro';
 import Lucide from '../components/Lucide.astro';
+import { safeJson } from '../lib/json';
 const { contact, nav, socials, disclaimer, footerText } = loadSite();
 
 interface Props {
@@ -54,9 +55,10 @@ const searchIndex = [
   { title: 'Materials', href: '/materials/' },
   { title: 'Events', href: '/events/' },
   { title: 'News', href: '/news/' },
-  { title: 'Project Book (PDF)', href: '/project-book/' },
+  { title: 'Executive Brief (PDF)', href: '/project-book/' },
   { title: 'Contact', href: '/contact/' },
 ];
+const tel = contact.phone.replace(/[^+\d]/g, '');
 ---
 
 <!doctype html>
@@ -87,18 +89,26 @@ const searchIndex = [
     <link rel="icon" href="/images/cropped-SHAPE-final-Logo-32x32.jpeg" sizes="32x32" />
     <link rel="icon" href="/images/cropped-SHAPE-final-Logo-192x192.jpeg" sizes="192x192" />
     <link rel="apple-touch-icon" href="/images/cropped-SHAPE-final-Logo-180x180.jpeg" />
-    <script type="application/ld+json" set:html={JSON.stringify(orgJsonLd)} />
+    <script type="application/ld+json" set:html={safeJson(orgJsonLd)} />
+    <script is:inline src="/js/boot.js"></script>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Inter:ital,wght@0,400;0,500;0,600;1,400&family=Poppins:wght@500;600;700;800&family=Roboto:ital@0;1&display=swap" rel="stylesheet" />
   </head>
   <body>
+    <div class="preloader" data-preloader role="status" aria-label="Loading">
+      <div class="preloader__inner">
+        <span class="preloader__ring"></span>
+        <img src="/images/cropped-SHAPE-final-Logo-192x192.jpeg" alt="" width="70" height="70" />
+        <span class="preloader__text">Loading<span class="preloader__dots"></span></span>
+      </div>
+    </div>
     <a class="skip" href="#content">Skip to content</a>
 
     <div class="topbar">
       <div class="container topbar__inner">
         <ul class="topbar__contact">
-          <li><a href={`tel:${contact.phone}`}><Lucide name="Phone" size={15} /> {contact.phone}</a></li>
+          <li><a href={`tel:${tel}`}><Lucide name="Phone" size={15} /> {contact.phone}</a></li>
           <li><a href={`mailto:${contact.email}`}><Lucide name="Mail" size={15} /> {contact.email}</a></li>
         </ul>
         <ul class="social">
@@ -184,6 +194,7 @@ const searchIndex = [
     </footer>
 
     <script>
+      import '../scripts/motion';
       const toggle = document.querySelector<HTMLButtonElement>('[data-nav-toggle]');
       const nav = document.querySelector<HTMLElement>('[data-nav]');
       toggle?.addEventListener('click', () => {

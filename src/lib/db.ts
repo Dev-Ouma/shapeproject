@@ -96,6 +96,14 @@ const MIGRATIONS: string[] = [
     at TEXT NOT NULL DEFAULT (datetime('now'))
   );
   `,
+  // 2 — one-time-password (TOTP) second factor
+  `
+  ALTER TABLE users ADD COLUMN totp_secret TEXT;
+  ALTER TABLE users ADD COLUMN totp_enabled INTEGER NOT NULL DEFAULT 0;
+  ALTER TABLE users ADD COLUMN totp_last_step INTEGER NOT NULL DEFAULT 0;
+  ALTER TABLE users ADD COLUMN recovery_codes TEXT NOT NULL DEFAULT '[]';
+  ALTER TABLE sessions ADD COLUMN mfa_ok INTEGER NOT NULL DEFAULT 1;
+  `,
 ];
 
 let db: DatabaseSync | undefined;

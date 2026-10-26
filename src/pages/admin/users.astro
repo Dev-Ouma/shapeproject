@@ -1,5 +1,6 @@
 ---
 import Admin from '../../layouts/Admin.astro';
+import { resetOtp, otpEnabled } from '../../lib/otp';
 import { listUsers, createInvite, updateUser, listPendingInvites, countActiveAdmins, getUser, audit, findUserByEmail, type Role } from '../../lib/auth';
 
 let error = '';
@@ -29,6 +30,7 @@ if (Astro.request.method === 'POST') {
       if (action === 'disable') updateUser(id, { disabled: true });
       if (action === 'enable') updateUser(id, { disabled: false });
       if (action === 'admin' || action === 'editor') updateUser(id, { role: action });
+      if (action === 'reset-otp') resetOtp(id);
       audit(me.id, `user.${action}`, target.email);
       return Astro.redirect('/admin/users?saved=1', 303);
     }
@@ -59,19 +61,21 @@ const invites = listPendingInvites();
     </form>
   </div>
   <table class="a-table">
-    <thead><tr><th>Name</th><th>Role</th><th>Status</th><th>Last login</th><th></th></tr></thead>
+    <thead><tr><th>Name</th><th>Role</th><th>Status</th><th>Two-step</th><th>Last login</th><th></th></tr></thead>
     <tbody>
       {users.map((u) => (
         <tr>
           <td><strong>{u.name}</strong>{u.id === me.id && <span class="a-help"> (you)</span>}<div class="a-help">{u.email}</div></td>
           <td><span class="a-role">{u.role}</span></td>
           <td>{u.disabled ? <span class="a-pill a-pill--spam">disabled</span> : <span class="a-pill a-pill--published">active</span>}</td>
+          <td>{otpEnabled(u.id) ? <span class="a-pill a-pill--published">on</span> : <span class="a-pill a-pill--draft">not set up</span>}</td>
           <td class="a-help">{u.last_login ?? 'never'}</td>
           <td>
             {u.id !== me.id && (
               <form method="post" style="display:flex;gap:4px;justify-content:flex-end">
                 <input type="hidden" name="id" value={u.id} />
                 {u.role === 'editor' ? <button class="a-btn a-btn--ghost a-btn--sm" name="action" value="admin">Make admin</button> : <button class="a-btn a-btn--ghost a-btn--sm" name="action" value="editor">Make editor</button>}
+                {otpEnabled(u.id) && <button class="a-btn a-btn--ghost a-btn--sm" name="action" value="reset-otp" data-confirm="Reset two-step sign-in? They will set it up again at next login.">Reset 2-step</button>}
                 {u.disabled ? <button class="a-btn a-btn--sm" name="action" value="enable">Enable</button> : <button class="a-btn a-btn--danger a-btn--sm" name="action" value="disable">Disable</button>}
               </form>
             )}

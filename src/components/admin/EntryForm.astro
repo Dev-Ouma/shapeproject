@@ -57,7 +57,4 @@ const viewUrl = entry ? publicUrl(c, entry.slug) : undefined;
 
 <script>
   import '../../scripts/admin-form';
-  document.querySelectorAll<HTMLButtonElement>('[data-confirm]').forEach((b) =>
-    b.addEventListener('click', (e) => { if (!confirm(b.dataset.confirm!)) e.preventDefault(); }),
-  );
 </script>

@@ -2,6 +2,7 @@
 // SHA-256 is stored), invite links, and an in-memory login rate limiter.
 import { createHash, randomBytes, scryptSync, timingSafeEqual } from 'node:crypto';
 import { getDb } from './db';
+import { otpRequired } from './otp';
 
 export type Role = 'admin' | 'editor';
 export type User = { id: number; email: string; name: string; role: Role; disabled: number; created_at: string; last_login: string | null };
@@ -101,7 +102,7 @@ export function resetRateLimits() {
   attempts.clear();
 }
 
-export type LoginResult = { ok: true; token: string; user: User } | { ok: false; error: string };
+export type LoginResult = { ok: true; token: string; user: User; needsOtp: boolean } | { ok: false; error: string };
 
 export function login(email: string, password: string, meta: { ip: string; userAgent: string }): LoginResult {
   const key = `${meta.ip}|${email.trim().toLowerCase()}`;
@@ -115,21 +116,46 @@ export function login(email: string, password: string, meta: { ip: string; userA
   }
   attempts.delete(key);
   const token = randomBytes(32).toString('base64url');
+  const needsOtp = otpRequired();
+  // A session that still needs its second factor lives only 10 minutes until the code is entered.
   getDb()
-    .prepare('INSERT INTO sessions (id, user_id, expires_at, ip, user_agent) VALUES (?, ?, ?, ?, ?)')
-    .run(sha256(token), user!.id, Date.now() + SESSION_DAYS * 864e5, meta.ip, meta.userAgent.slice(0, 200));
-  getDb().prepare("UPDATE users SET last_login = datetime('now') WHERE id = ?").run(user!.id);
-  return { ok: true, token, user: getUser(user!.id)! };
+    .prepare('INSERT INTO sessions (id, user_id, expires_at, ip, user_agent, mfa_ok) VALUES (?, ?, ?, ?, ?, ?)')
+    .run(sha256(token), user!.id, Date.now() + (needsOtp ? 10 * 60 * 1000 : SESSION_DAYS * 864e5), meta.ip, meta.userAgent.slice(0, 200), needsOtp ? 0 : 1);
+  if (!needsOtp) getDb().prepare("UPDATE users SET last_login = datetime('now') WHERE id = ?").run(user!.id);
+  return { ok: true, token, user: getUser(user!.id)!, needsOtp };
 }
 
-export function userForSession(token: string | undefined): User | undefined {
+export function sessionInfo(token: string | undefined): { user: User; mfaOk: boolean } | undefined {
   if (!token) return undefined;
   const row = getDb()
-    .prepare('SELECT u.id, u.email, u.name, u.role, u.disabled, u.created_at, u.last_login, s.expires_at FROM sessions s JOIN users u ON u.id = s.user_id WHERE s.id = ?')
-    .get(sha256(token)) as (User & { expires_at: number }) | undefined;
+    .prepare('SELECT u.id, u.email, u.name, u.role, u.disabled, u.created_at, u.last_login, s.expires_at, s.mfa_ok FROM sessions s JOIN users u ON u.id = s.user_id WHERE s.id = ?')
+    .get(sha256(token)) as (User & { expires_at: number; mfa_ok: number }) | undefined;
   if (!row || row.disabled || row.expires_at < Date.now()) return undefined;
-  const { expires_at, ...user } = row;
-  return user;
+  const { expires_at, mfa_ok, ...user } = row;
+  return { user, mfaOk: !!mfa_ok };
+}
+
+/** The signed-in user, only once any required second factor has been passed. */
+export function userForSession(token: string | undefined): User | undefined {
+  const s = sessionInfo(token);
+  return s?.mfaOk ? s.user : undefined;
+}
+
+/** Second factor passed: upgrade the session to full length. */
+export function completeMfa(token: string, userId: number) {
+  getDb().prepare('UPDATE sessions SET mfa_ok = 1, expires_at = ? WHERE id = ?').run(Date.now() + SESSION_DAYS * 864e5, sha256(token));
+  getDb().prepare("UPDATE users SET last_login = datetime('now') WHERE id = ?").run(userId);
+}
+
+/** Rate limiting for OTP codes, sharing the login limiter. */
+export function otpLocked(userId: number): number {
+  return isLocked(`otp|${userId}`);
+}
+export function otpFailure(userId: number) {
+  recordFailure(`otp|${userId}`);
+}
+export function otpSuccess(userId: number) {
+  attempts.delete(`otp|${userId}`);
 }
 
 export function logout(token: string | undefined) {

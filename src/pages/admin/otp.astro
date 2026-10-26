@@ -1,0 +1,107 @@
+---
+import AuthShell from '../../components/admin/AuthShell.astro';
+import { SESSION_COOKIE, completeMfa, audit, otpLocked, otpFailure, otpSuccess } from '../../lib/auth';
+import { otpEnabled, beginEnrolment, confirmEnrolment, verifyLoginCode, otpauthUrl, qrSvg } from '../../lib/otp';
+
+const user = Astro.locals.pendingUser;
+if (!user) return Astro.redirect(Astro.locals.user ? '/admin' : '/admin/login');
+const token = Astro.cookies.get(SESSION_COOKIE)?.value ?? '';
+const next = Astro.url.searchParams.get('next');
+const safeNext = next && next.startsWith('/admin') && !next.startsWith('//') ? next : '/admin';
+
+let error = '';
+let recovery: string[] | null = null;
+const enrolled = otpEnabled(user.id);
+
+if (Astro.request.method === 'POST') {
+  const f = await Astro.request.formData();
+  const code = String(f.get('code') ?? '').trim();
+  const locked = otpLocked(user.id);
+  if (locked) error = `Too many attempts. Try again in ${locked} minute${locked > 1 ? 's' : ''}.`;
+  else if (!enrolled) {
+    recovery = confirmEnrolment(user.id, code);
+    if (recovery) {
+      otpSuccess(user.id);
+      completeMfa(token, user.id);
+      audit(user.id, 'otp.enrolled');
+    } else {
+      otpFailure(user.id);
+      error = 'That code did not match. Check the time on your phone and try the newest code.';
+    }
+  } else {
+    const how = verifyLoginCode(user.id, code);
+    if (how) {
+      otpSuccess(user.id);
+      completeMfa(token, user.id);
+      audit(user.id, how === 'recovery' ? 'login.recovery-code' : 'login');
+      return Astro.redirect(safeNext, 303);
+    }
+    otpFailure(user.id);
+    error = 'Invalid or already used code.';
+  }
+  if (error) Astro.response.status = 401;
+}
+
+const secret = !enrolled && !recovery ? beginEnrolment(user.id) : '';
+const qr = secret ? await qrSvg(otpauthUrl(secret, user.email)) : '';
+const grouped = secret.replace(/(.{4})/g, '$1 ').trim();
+---
+
+<AuthShell title="Verification code">
+  {recovery ? (
+    <Fragment>
+      <h1>Two-step sign-in is on</h1>
+      <p class="a-sub">Save these recovery codes somewhere safe. Each works once if you lose your phone. They will not be shown again.</p>
+      <ol class="a-codes" data-codes>{recovery.map((c) => <li><code>{c}</code></li>)}</ol>
+      <div style="display:flex;gap:8px;margin-bottom:12px">
+        <button type="button" class="a-btn a-btn--ghost" data-copy-codes style="flex:1;justify-content:center">Copy codes</button>
+        <button type="button" class="a-btn a-btn--ghost" data-print-codes style="flex:1;justify-content:center">Print</button>
+      </div>
+      <a class="a-btn" href={safeNext}>I have saved them — continue</a>
+    </Fragment>
+  ) : enrolled ? (
+    <Fragment>
+      <h1>Enter your verification code</h1>
+      <p class="a-sub">Open your authenticator app and enter the 6-digit code for <strong>SHAPE CMS</strong> ({user.email}).</p>
+      {error && <p class="a-flash a-flash--err" role="alert">{error}</p>}
+      <form method="post" class="a-form">
+        <div class="a-field">
+          <label for="code">6-digit code</label>
+          <input id="code" name="code" class="a-otp" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9 ]{6,7}|[a-f0-9-]{11}" maxlength="11" required autofocus />
+          <span class="a-help">Lost your phone? Enter one of your recovery codes instead.</span>
+        </div>
+        <button class="a-btn" type="submit">Verify</button>
+      </form>
+      <form method="post" action="/admin/logout"><button class="a-btn a-btn--ghost" type="submit" style="margin-top:10px">Cancel and sign out</button></form>
+    </Fragment>
+  ) : (
+    <Fragment>
+      <h1>Set up two-step sign-in</h1>
+      <p class="a-sub">Every CMS account needs a one-time code from an authenticator app (Google Authenticator, Microsoft Authenticator, Authy…).</p>
+      <ol class="a-steps">
+        <li>Scan this QR code with the app.</li>
+        <li>Enter the 6-digit code it shows.</li>
+      </ol>
+      <div class="a-qr" set:html={qr} aria-label="QR code for your authenticator app"></div>
+      <details class="a-secret"><summary>Can't scan? Enter this key manually</summary><code data-secret>{grouped}</code></details>
+      {error && <p class="a-flash a-flash--err" role="alert">{error}</p>}
+      <form method="post" class="a-form">
+        <div class="a-field">
+          <label for="code">6-digit code</label>
+          <input id="code" name="code" class="a-otp" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9 ]{6,7}" maxlength="7" required />
+        </div>
+        <button class="a-btn" type="submit">Turn on and continue</button>
+      </form>
+      <form method="post" action="/admin/logout"><button class="a-btn a-btn--ghost" type="submit" style="margin-top:10px">Cancel and sign out</button></form>
+    </Fragment>
+  )}
+</AuthShell>
+
+<script>
+  const codes = document.querySelector('[data-codes]');
+  document.querySelector('[data-copy-codes]')?.addEventListener('click', (e) => {
+    navigator.clipboard.writeText(codes!.textContent!.trim().split(/\s+/).join('\n'));
+    (e.currentTarget as HTMLButtonElement).textContent = 'Copied';
+  });
+  document.querySelector('[data-print-codes]')?.addEventListener('click', () => print());
+</script>

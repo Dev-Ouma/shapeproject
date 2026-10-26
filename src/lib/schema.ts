@@ -2,7 +2,7 @@
 // validation (`validateEntry`) enforces them on every save.
 
 export type Field =
-  | { name: string; label: string; type: 'text' | 'textarea' | 'url' | 'email' | 'icon' | 'color' | 'date' | 'datetime' | 'image' | 'file'; required?: boolean; help?: string; max?: number }
+  | { name: string; label: string; type: 'text' | 'textarea' | 'url' | 'email' | 'icon' | 'color' | 'date' | 'datetime' | 'image' | 'file' | 'link'; required?: boolean; help?: string; max?: number }
   | { name: string; label: string; type: 'richtext'; required?: boolean; help?: string }
   | { name: string; label: string; type: 'number'; required?: boolean; help?: string; min?: number; max?: number }
   | { name: string; label: string; type: 'boolean'; help?: string }
@@ -51,18 +51,18 @@ export const collections: Collection[] = [
     key: 'nav', label: 'Navigation', singular: 'Menu item', kind: 'list', group: 'Site', icon: 'Menu', sortable: true, titleField: 'label', adminOnly: true,
     fields: [
       { name: 'label', label: 'Label', type: 'text', required: true },
-      { name: 'href', label: 'Link', type: 'text', required: true },
+      { name: 'href', label: 'Link', type: 'link', required: true },
       { name: 'children', label: 'Sub-menu', type: 'list', itemLabel: 'label', fields: [
         { name: 'label', label: 'Label', type: 'text', required: true },
-        { name: 'href', label: 'Link', type: 'text', required: true },
+        { name: 'href', label: 'Link', type: 'link', required: true },
       ] },
     ],
   },
   {
     key: 'redirects', label: 'Redirects', singular: 'Redirect', kind: 'list', group: 'Site', icon: 'CornerDownRight', titleField: 'from', adminOnly: true,
     fields: [
-      { name: 'from', label: 'From path', type: 'text', required: true, help: 'e.g. /old-page' },
-      { name: 'to', label: 'To path or URL', type: 'text', required: true },
+      { name: 'from', label: 'From path', type: 'link', required: true, help: 'e.g. /old-page' },
+      { name: 'to', label: 'To path or URL', type: 'link', required: true },
     ],
   },
   {
@@ -72,7 +72,7 @@ export const collections: Collection[] = [
       { name: 'title', label: 'Title', type: 'text', required: true },
       { name: 'text', label: 'Text', type: 'textarea', required: true },
       { name: 'ctaLabel', label: 'Button label', type: 'text', required: true },
-      { name: 'ctaHref', label: 'Button link', type: 'text', required: true },
+      { name: 'ctaHref', label: 'Button link', type: 'link', required: true },
     ],
   },
   {
@@ -171,7 +171,7 @@ export const collections: Collection[] = [
       { name: 'location', label: 'Location', type: 'text', required: true },
       { name: 'text', label: 'Description', type: 'textarea', required: true },
       { name: 'image', label: 'Image', type: 'image' },
-      { name: 'link', label: 'Link (e.g. news story)', type: 'text' },
+      { name: 'link', label: 'Link (e.g. news story)', type: 'link' },
     ],
   },
   {
@@ -188,7 +188,7 @@ export const collections: Collection[] = [
     fields: [
       { name: 'title', label: 'Title', type: 'text', required: true },
       { name: 'date', label: 'Date label', type: 'text', required: true, help: 'e.g. Sep–Oct 2026' },
-      { name: 'link', label: 'Story link', type: 'text' },
+      { name: 'link', label: 'Story link', type: 'link' },
       { name: 'photos', label: 'Photos', type: 'list', itemLabel: 'src', fields: [{ name: 'src', label: 'Photo', type: 'image', required: true }] },
     ],
   },
@@ -287,7 +287,9 @@ export function validateFields(fields: Field[], raw: Record<string, unknown>, pr
         else if (f.type === 'date' && !/^\d{4}-\d{2}-\d{2}$/.test(s)) errors[key] = 'Use YYYY-MM-DD';
         else if (f.type === 'datetime' && Number.isNaN(Date.parse(s))) errors[key] = 'Invalid date';
         else if (f.type === 'select' && Array.isArray(f.options) && !f.options.includes(s)) errors[key] = 'Choose a valid option';
-        else if ((f.type === 'image' || f.type === 'file') && !/^(\/|https?:\/\/)/.test(s)) errors[key] = 'Must be an uploaded file or URL';
+        else if ((f.type === 'image' || f.type === 'file') && !/^(\/(?!\/)|https?:\/\/)/.test(s)) errors[key] = 'Must be an uploaded file or URL';
+        else if (f.type === 'link' && !/^(\/(?!\/)|#|https?:\/\/|mailto:|tel:)/i.test(s)) errors[key] = 'Use a path like /news/ or a full https:// link';
+        else if (f.type === 'icon' && !/^[A-Za-z0-9]+$/.test(s)) errors[key] = 'Icon names contain letters and numbers only';
         data[f.name] = s;
       }
     }

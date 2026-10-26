@@ -169,6 +169,7 @@ function initEditor(wrap: HTMLElement) {
   const bar = wrap.querySelector<HTMLElement>('[data-rte-bar]')!;
   const editor = new Editor({
     element: wrap.querySelector<HTMLElement>('[data-rte-body]')!,
+    injectCSS: false, // CSP forbids injected <style> elements; editor styles live in admin.css
     extensions: [StarterKit.configure({ link: false }), Link.configure({ openOnClick: false }), Image],
     content: input.value,
     onUpdate: ({ editor }) => { input.value = editor.getHTML(); },
