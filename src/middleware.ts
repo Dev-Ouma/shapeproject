@@ -55,7 +55,11 @@ export const onRequest = defineMiddleware(async (ctx, next) => {
     if (hit) return ctx.redirect(hit.to, 301);
   }
 
-  for (const [k, v] of Object.entries(SECURITY_HEADERS)) if (!res.headers.has(k)) res.headers.set(k, v);
+  for (const [k, v] of Object.entries(SECURITY_HEADERS)) {
+    // Vite dev injects <style> blocks and inline HMR scripts, which the production CSP forbids.
+    if (import.meta.env.DEV && k === 'Content-Security-Policy') continue;
+    if (!res.headers.has(k)) res.headers.set(k, v);
+  }
   if (path.startsWith('/admin') || path.startsWith('/api')) res.headers.set('Cache-Control', 'no-store');
   return res;
 });
