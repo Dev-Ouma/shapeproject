@@ -1,0 +1,9 @@
+---
+import Base from '../../layouts/Base.astro';
+import PostArchive from '../../components/PostArchive.astro';
+import { news } from '../../data/news';
+---
+
+<Base title="News">
+  <PostArchive heading="Category" label="News" posts={news.filter((p) => p.category === 'News')} />
+</Base>

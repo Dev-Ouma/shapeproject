@@ -1,0 +1,96 @@
+---
+import Base from '../../layouts/Base.astro';
+import { news } from '../../data/news';
+
+export function getStaticPaths() {
+  return news.map((post) => ({ params: { slug: post.slug }, props: { post } }));
+}
+
+const { post } = Astro.props;
+---
+
+<Base title={post.title} description={post.excerpt} image={post.image} type="article" published={post.date} modified={post.modified} readingMinutes={post.readingMinutes}>
+  <article class="site-main single-post">
+    <header class="page-header">
+      <h1 class="entry-title">{post.title}</h1>
+    </header>
+    <div class="page-content">
+      <Fragment set:html={post.html} />
+      {post.tags.length > 0 && (
+        <div class="post-tags">
+          <span class="tag-links">
+            Tagged{' '}
+            {post.tags.map((t, i) => (
+              <Fragment><a href={`/tag/${t.slug}/`} rel="tag">{t.name}</a>{i < post.tags.length - 1 ? ', ' : ''}</Fragment>
+            ))}
+          </span>
+        </div>
+      )}
+    </div>
+
+    {post.commentsOpen && (
+      <section id="comments" class="comments-area">
+        <div id="respond" class="comment-respond">
+          <h2 id="reply-title" class="comment-reply-title">Leave a Reply</h2>
+          <form action="https://shapeproject.org/wp-comments-post.php" method="post" id="commentform" class="comment-form">
+            <p class="comment-notes">
+              <span id="email-notes">Your email address will not be published.</span>
+              <span class="required-field-message"> Required fields are marked <span class="required">*</span></span>
+            </p>
+            <p class="comment-form-comment">
+              <label for="comment">Comment <span class="required">*</span></label>
+              <textarea id="comment" name="comment" cols="45" rows="8" maxlength="65525" required></textarea>
+            </p>
+            <p class="comment-form-author">
+              <label for="author">Name <span class="required">*</span></label>
+              <input id="author" name="author" type="text" size="30" maxlength="245" autocomplete="name" required />
+            </p>
+            <p class="comment-form-email">
+              <label for="email">Email <span class="required">*</span></label>
+              <input id="email" name="email" type="email" size="30" maxlength="100" aria-describedby="email-notes" autocomplete="email" required />
+            </p>
+            <p class="comment-form-url">
+              <label for="url">Website</label>
+              <input id="url" name="url" type="url" size="30" maxlength="200" autocomplete="url" />
+            </p>
+            <p class="comment-form-cookies-consent">
+              <input id="wp-comment-cookies-consent" name="wp-comment-cookies-consent" type="checkbox" value="yes" />
+              <label for="wp-comment-cookies-consent">Save my name, email, and website in this browser for the next time I comment.</label>
+            </p>
+            <p class="form-submit">
+              <input name="submit" type="submit" id="submit" class="submit" value="Post Comment" />
+              <input type="hidden" name="comment_post_ID" value={post.id} id="comment_post_ID" />
+              <input type="hidden" name="comment_parent" id="comment_parent" value="0" />
+            </p>
+          </form>
+        </div>
+      </section>
+    )}
+  </article>
+
+  <script>
+    // Mirrors WordPress's "remember me" cookie behaviour using localStorage.
+    const KEY = 'shape-comment-author';
+    const form = document.querySelector<HTMLFormElement>('#commentform');
+    if (form) {
+      const fields = ['author', 'email', 'url'] as const;
+      const consent = form.querySelector<HTMLInputElement>('#wp-comment-cookies-consent')!;
+      try {
+        const saved = JSON.parse(localStorage.getItem(KEY) ?? 'null');
+        if (saved) {
+          fields.forEach((f) => (form.querySelector<HTMLInputElement>(`#${f}`)!.value = saved[f] ?? ''));
+          consent.checked = true;
+        }
+      } catch {}
+      form.addEventListener('submit', () => {
+        try {
+          if (consent.checked) {
+            localStorage.setItem(KEY, JSON.stringify(Object.fromEntries(fields.map((f) => [f, form.querySelector<HTMLInputElement>(`#${f}`)!.value]))));
+          } else {
+            localStorage.removeItem(KEY);
+          }
+        } catch {}
+      });
+    }
+  </script>
+</Base>

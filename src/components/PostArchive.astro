@@ -1,0 +1,28 @@
+---
+import type { NewsPost } from '../data/news';
+
+interface Props {
+  heading: string;
+  label: string;
+  posts: NewsPost[];
+}
+
+const { heading, label, posts } = Astro.props;
+---
+
+<div class="site-main">
+  <header class="page-header">
+    <h1 class="entry-title">{heading}: <span>{label}</span></h1>
+  </header>
+  <div class="page-content">
+    {posts.map((post) => (
+      <article class="archive-post">
+        <h2 class="entry-title"><a href={`/news/${post.slug}/`}>{post.title}</a></h2>
+        {post.image && (
+          <a href={`/news/${post.slug}/`} class="archive-post__img"><img src={post.image} alt="" loading="lazy" /></a>
+        )}
+        <p>{post.excerpt}</p>
+      </article>
+    ))}
+  </div>
+</div>

@@ -1,0 +1,15 @@
+---
+// Matches the plain Hello Elementor page title used on the original secondary pages.
+interface Props {
+  title: string;
+  lead?: string;
+}
+const { title, lead } = Astro.props;
+---
+
+<div class="site-main site-main--title">
+  <header class="page-header">
+    <h1 class="entry-title">{title}</h1>
+    {lead && <p class="page-lead">{lead}</p>}
+  </header>
+</div>

@@ -1,0 +1,37 @@
+---
+import Base from '../layouts/Base.astro';
+import PageHero from '../components/PageHero.astro';
+import Icon from '../components/Icon.astro';
+import { contact, socials } from '../data/site';
+---
+
+<Base title="Contact">
+  <PageHero title="Contact" lead="Get in touch with the SHAPE project team." />
+  <section class="section">
+    <div class="container contact">
+      <div class="contact__info">
+        <a class="card contact__item" href={`mailto:${contact.email}`}><Icon name="mail" size={22} /><span><strong>Email</strong>{contact.email}</span></a>
+        <a class="card contact__item" href={`tel:${contact.phone}`}><Icon name="phone" size={22} /><span><strong>Phone</strong>{contact.phone}</span></a>
+        <ul class="social social--lg">
+          {socials.map((s) => <li><a href={s.href} aria-label={s.name} target="_blank" rel="noopener"><Icon name={s.icon} size={20} /></a></li>)}
+        </ul>
+      </div>
+      <form class="card contact__form" data-contact>
+        <label>Name<input name="name" required autocomplete="name" /></label>
+        <label>Email<input name="email" type="email" required autocomplete="email" /></label>
+        <label>Subject<input name="subject" required /></label>
+        <label>Message<textarea name="message" rows="6" required></textarea></label>
+        <button class="btn" type="submit">Send message</button>
+        <p class="form-note">Opens your email client addressed to {contact.email}.</p>
+      </form>
+    </div>
+  </section>
+  <script define:vars={{ email: contact.email }}>
+    document.querySelector('[data-contact]')?.addEventListener('submit', (e) => {
+      e.preventDefault();
+      const d = new FormData(e.target);
+      const body = `${d.get('message')}\n\n— ${d.get('name')} <${d.get('email')}>`;
+      location.href = `mailto:${email}?subject=${encodeURIComponent(d.get('subject'))}&body=${encodeURIComponent(body)}`;
+    });
+  </script>
+</Base>

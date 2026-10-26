@@ -1,0 +1,117 @@
+---
+import Base from '../layouts/Base.astro';
+import PartnerGrid from '../components/PartnerGrid.astro';
+import NewsCard from '../components/NewsCard.astro';
+import Lucide from '../components/Lucide.astro';
+import NetworkBg from '../components/NetworkBg.astro';
+import { slides, facts } from '../data/site';
+import { news } from '../data/news';
+---
+
+<Base title="Home">
+  <div class="hero-wrap">
+    <section class="hero" data-slider aria-roledescription="carousel" aria-label="SHAPE highlights">
+      {slides.map((s, i) => (
+        <div class:list={['hero__slide', { 'is-active': i === 0 }]} style={`--img:url(${s.image})`} aria-hidden={i !== 0 ? 'true' : undefined} aria-roledescription="slide" aria-label={`${i + 1} of ${slides.length}`}>
+          <div class="container hero__content">
+            <h2>{s.title}</h2>
+            <p>{s.text}</p>
+            <a class="btn btn--gold" href={s.cta.href}>{s.cta.label} <Lucide name="ArrowRight" size={16} /></a>
+          </div>
+        </div>
+      ))}
+      <button class="hero__arrow hero__arrow--prev" type="button" aria-label="Previous slide" data-prev><Lucide name="ChevronLeft" size={18} /></button>
+      <button class="hero__arrow hero__arrow--next" type="button" aria-label="Next slide" data-next><Lucide name="ChevronRight" size={18} /></button>
+      <div class="hero__dots" role="tablist" aria-label="Choose slide">
+        {slides.map((_, i) => (
+          <button role="tab" aria-label={`Slide ${i + 1}`} aria-selected={i === 0 ? 'true' : 'false'} data-dot={i}></button>
+        ))}
+      </div>
+    </section>
+  </div>
+
+  <section class="section facts-section">
+    <NetworkBg />
+    <div class="container">
+      <header class="section-head">
+        <h2>Quick Facts</h2>
+        <p>An Erasmus+ Capacity Building initiative connecting European and East African universities to advance smart, sustainable city development.</p>
+        <small>Hover a card — or tap on mobile — to see more</small>
+      </header>
+      <div class="facts">
+        {facts.map((f) => (
+          <button class="flip" type="button" aria-label={`${f.num} ${f.unit} — ${f.label}`}>
+            <span class="flip__inner">
+              <span class="flip__front">
+                <span class="icon-tile"><Lucide name={f.icon} size={20} /></span>
+                <span class="flip__value">{f.num}{f.unit && <small>{f.unit}</small>}</span>
+                <span class="flip__label">{f.label}</span>
+                <span class="flip__sub"><i></i>{f.sub}</span>
+              </span>
+              <span class="flip__back">
+                <span class="flip__label">{f.label}</span>
+                <span class="flip__text">{f.text}</span>
+                <span class="flip__tag">{f.tag}</span>
+              </span>
+            </span>
+          </button>
+        ))}
+      </div>
+    </div>
+  </section>
+
+  <section class="section section--alt">
+    <div class="container">
+      <header class="section-head">
+        <h2>Latest News</h2>
+        <p>Updates, events, and milestones from the SHAPE programme across East Africa and Europe.</p>
+      </header>
+      <div class="news-grid">
+        {news.slice(0, 6).map((p) => <NewsCard post={p} />)}
+      </div>
+      <div class="center"><a class="btn btn--grad" href="/news/">View All News <Lucide name="ArrowRight" size={16} /></a></div>
+    </div>
+  </section>
+
+  <section class="section section--alt" id="shape_partners">
+    <div class="container">
+      <header class="section-head">
+        <h2>Project Partners</h2>
+        <p>Nine universities across Europe and East Africa working together to shape smarter, more sustainable cities.</p>
+        <small>Hover a partner — or tap on mobile — for more detail</small>
+      </header>
+      <PartnerGrid />
+    </div>
+  </section>
+
+  <script>
+    const root = document.querySelector<HTMLElement>('[data-slider]');
+    if (root) {
+      const slides = [...root.querySelectorAll<HTMLElement>('.hero__slide')];
+      const dots = [...root.querySelectorAll<HTMLButtonElement>('[data-dot]')];
+      let i = 0;
+      let timer: number | undefined;
+      const show = (n: number) => {
+        i = (n + slides.length) % slides.length;
+        slides.forEach((s, k) => {
+          s.classList.toggle('is-active', k === i);
+          s.toggleAttribute('aria-hidden', k !== i);
+        });
+        dots.forEach((d, k) => d.setAttribute('aria-selected', String(k === i)));
+      };
+      const start = () => {
+        clearInterval(timer);
+        if (matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+        timer = window.setInterval(() => show(i + 1), 6000);
+      };
+      const go = (n: number) => { show(n); start(); };
+      dots.forEach((d, k) => d.addEventListener('click', () => go(k)));
+      root.querySelector('[data-prev]')?.addEventListener('click', () => go(i - 1));
+      root.querySelector('[data-next]')?.addEventListener('click', () => go(i + 1));
+      root.addEventListener('mouseenter', () => clearInterval(timer));
+      root.addEventListener('mouseleave', start);
+      start();
+    }
+    document.querySelectorAll('.flip').forEach((c) => c.addEventListener('click', () => c.classList.toggle('is-flipped')));
+  </script>
+</Base>

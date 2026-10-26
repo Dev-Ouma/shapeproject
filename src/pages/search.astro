@@ -1,0 +1,63 @@
+---
+import Base from '../layouts/Base.astro';
+import { news } from '../data/news';
+import { aboutParagraphs, thematicAreas, targetGroups, impacts, workPackages, partners, facts } from '../data/site';
+
+// Static site: build a search index at build time and filter it in the browser.
+const index = [
+  ...news.map((p) => ({ title: p.title, href: `/news/${p.slug}/`, image: p.image, excerpt: p.excerpt, body: p.html.replace(/<[^>]+>/g, ' ') + ' ' + p.tags.map((t) => t.name).join(' ') })),
+  { title: 'About', href: '/about/', excerpt: aboutParagraphs[0], body: [...aboutParagraphs, ...thematicAreas.map((t) => t.title), ...targetGroups.map((t) => t.title), ...impacts.map((i) => `${i.title} ${i.text}`)].join(' ') },
+  { title: 'Deliverables', href: '/deliverables/', excerpt: 'Five coordinated Work Packages carry SHAPE from research through to a lasting EU–East Africa alliance.', body: workPackages.map((w) => `${w.title} ${w.summary} ${w.lead} ${w.deliverables.map((d) => `${d.code} ${d.desc}`).join(' ')}`).join(' ') },
+  { title: 'Partners', href: '/partners/', excerpt: 'Nine universities across Europe and East Africa working together to shape smarter, more sustainable cities.', body: partners.map((p) => `${p.name} ${p.country} ${p.text}`).join(' ') },
+  { title: 'SHAPE', href: '/', excerpt: 'Empowering Universities to Shape Smarter Cities', body: facts.map((f) => `${f.label} ${f.text}`).join(' ') },
+];
+---
+
+<Base title="Search" noindex>
+  <div class="site-main">
+    <header class="page-header">
+      <h1 class="entry-title">Search results for: <span data-q></span></h1>
+    </header>
+    <div class="page-content" data-results></div>
+  </div>
+  <script type="application/json" id="search-index" set:html={JSON.stringify(index)} />
+  <script>
+    type Entry = { title: string; href: string; image?: string; excerpt: string; body: string };
+    const index: Entry[] = JSON.parse(document.getElementById('search-index')!.textContent!);
+    const q = (new URLSearchParams(location.search).get('s') ?? '').trim();
+    document.querySelector('[data-q]')!.textContent = q;
+    document.title = `Search Results for "${q}" - SHAPE Project`;
+    const out = document.querySelector<HTMLElement>('[data-results]')!;
+    const terms = q.toLowerCase().split(/\s+/).filter(Boolean);
+    const hits = terms.length ? index.filter((e) => { const hay = `${e.title} ${e.excerpt} ${e.body}`.toLowerCase(); return terms.every((t) => hay.includes(t)); }) : [];
+    if (!hits.length) {
+      out.innerHTML = '<p>It seems we can’t find what you’re looking for.</p>';
+    } else {
+      hits.forEach((e) => {
+        const art = document.createElement('article');
+        art.className = 'archive-post';
+        const h2 = document.createElement('h2');
+        h2.className = 'entry-title';
+        const a = document.createElement('a');
+        a.href = e.href;
+        a.textContent = e.title;
+        h2.append(a);
+        art.append(h2);
+        if (e.image) {
+          const ia = document.createElement('a');
+          ia.href = e.href;
+          ia.className = 'archive-post__img';
+          const img = document.createElement('img');
+          img.src = e.image;
+          img.alt = '';
+          ia.append(img);
+          art.append(ia);
+        }
+        const p = document.createElement('p');
+        p.textContent = e.excerpt;
+        art.append(p);
+        out.append(art);
+      });
+    }
+  </script>
+</Base>

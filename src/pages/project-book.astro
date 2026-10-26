@@ -1,0 +1,378 @@
+---
+import Base from '../layouts/Base.astro';
+import '../styles/book.css';
+import Lucide from '../components/Lucide.astro';
+import {
+  facts, aboutParagraphs, goal, mission, thematicAreas, targetGroups, impacts, workPackages,
+  partners, contact, socials, disclaimer, PROJECT_MONTHS,
+} from '../data/site';
+import { coordinator, associatedPartners, events } from '../data/programme';
+
+const PDF = '/downloads/SHAPE-Project-Book.pdf';
+const toc = [
+  { id: 'glance', title: 'SHAPE at a Glance' },
+  { id: 'challenge', title: 'The Challenge' },
+  { id: 'response', title: 'Our Response' },
+  { id: 'themes', title: 'Twelve Thematic Areas' },
+  { id: 'people', title: 'Who We Serve' },
+  { id: 'consortium', title: 'The Consortium' },
+  { id: 'workplan', title: 'Work Plan' },
+  { id: 'timeline', title: 'Timeline & Deliverables' },
+  { id: 'impact', title: 'Expected Impact' },
+  { id: 'journey', title: 'The Journey So Far' },
+  { id: 'contact', title: 'Get in Touch' },
+];
+const pageOf = (id: string) => toc.findIndex((t) => t.id === id) + 3;
+const deliverableCount = workPackages.reduce((n, w) => n + w.deliverables.length, 0);
+const col = (m: number) => `${((m - 1) / PROJECT_MONTHS) * 100}%`;
+const width = (s: number, e: number) => `${((e - s + 1) / PROJECT_MONTHS) * 100}%`;
+const pastEvents = events.filter((e) => !e.planned);
+const fmt = (iso: string) => new Date(iso + 'T00:00:00Z').toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric', timeZone: 'UTC' });
+const edition = new Date().toLocaleDateString('en-GB', { month: 'long', year: 'numeric' });
+---
+
+<Base title="Project Book" description="The SHAPE Project Book — a digital document about the Smart City Higher Education Advancement Program in East Africa. Read online or download as PDF.">
+  <div class="book-toolbar" data-toolbar>
+    <div class="book-toolbar__inner">
+      <button class="book-btn book-btn--ghost" type="button" data-toc-toggle aria-expanded="false" aria-controls="book-toc"><Lucide name="List" size={16} /> Contents</button>
+      <div class="book-toolbar__title"><strong>SHAPE Project Book</strong><span data-page-indicator>Cover</span></div>
+      <div class="book-toolbar__actions">
+        <button class="book-btn book-btn--ghost" type="button" data-copy title="Copy link"><Lucide name="Link" size={16} /><span>Copy link</span></button>
+        <button class="book-btn book-btn--ghost" type="button" data-print title="Print"><Lucide name="Printer" size={16} /><span>Print</span></button>
+        <a class="book-btn" href={PDF} download><Lucide name="Download" size={16} /><span>Download PDF</span></a>
+      </div>
+    </div>
+    <div class="book-progress"><span data-progress></span></div>
+  </div>
+
+  <nav id="book-toc" class="book-toc" aria-label="Project Book contents" data-toc>
+    <strong>Contents</strong>
+    <ol>
+      <li><a href="#cover">Cover</a></li>
+      {toc.map((t) => <li><a href={`#${t.id}`}>{t.title}</a></li>)}
+    </ol>
+  </nav>
+
+  <div class="book">
+    <!-- 1. Cover -->
+    <section class="sheet sheet--cover" id="cover" data-title="Cover">
+      <img class="cover__bg" src="/images/slider1.png" alt="" />
+      <div class="cover__shade"></div>
+      <div class="cover__top">
+        <img src="/images/White-SHAPE-final-Logo-1-1024x431.png" alt="SHAPE" class="cover__logo" />
+        <span class="cover__edition">Project Book · {edition}</span>
+      </div>
+      <div class="cover__main">
+        <span class="cover__kicker">Erasmus+ Capacity Building in Higher Education</span>
+        <h1>Shaping Smarter Cities<br />through Higher Education</h1>
+        <p>The Smart City Higher Education Advancement Program in East Africa — nine universities, three countries of impact, one shared mission.</p>
+        <ul class="cover__chips">
+          <li>Kenya</li><li>Somalia</li><li>Uganda</li><li>Estonia</li><li>Germany</li><li>Lithuania</li>
+        </ul>
+      </div>
+      <div class="cover__foot">
+        <div class="cover__eu"><img src="/images/EU-scaled.png" alt="Co-funded by the Erasmus+ Programme of the European Union" /></div>
+        <span>2025 – 2028 · ERASMUS-EDU-2025-CBHE-STRAND-2</span>
+      </div>
+    </section>
+
+    <!-- 2. Contents -->
+    <section class="sheet" id="contents" data-title="Contents">
+      <header class="sheet__head"><span class="sheet__no">02</span><span class="sheet__run">SHAPE Project Book</span></header>
+      <div class="contents">
+        <div class="contents__intro">
+          <span class="eyebrow">Inside</span>
+          <h2>Contents</h2>
+          <p class="lead">This book tells the SHAPE story in eleven short chapters — why smart city education matters for East Africa, what the consortium is building, and how we will know it worked.</p>
+          <blockquote class="pull">“Programmes that reflect the realities and priorities of African cities rather than replicating models developed elsewhere.”</blockquote>
+        </div>
+        <ol class="contents__list">
+          {toc.map((t, i) => (
+            <li><a href={`#${t.id}`}><span class="contents__n">{String(i + 1).padStart(2, '0')}</span><span class="contents__t">{t.title}</span><span class="contents__dots"></span><span class="contents__p">{pageOf(t.id)}</span></a></li>
+          ))}
+        </ol>
+      </div>
+      <footer class="sheet__foot"><img src="/images/Shape-and-EU-scaled.png" alt="" /><span>shapeproject.org</span></footer>
+    </section>
+
+    <!-- 3. At a glance -->
+    <section class="sheet" id="glance" data-title="SHAPE at a Glance">
+      <header class="sheet__head"><span class="sheet__no">03</span><span class="sheet__run">01 · SHAPE at a Glance</span></header>
+      <span class="chapter">Chapter 01</span>
+      <h2 class="sheet__title">SHAPE at a Glance</h2>
+      <p class="lead">An Erasmus+ Capacity Building initiative connecting European and East African universities to advance smart, sustainable city development.</p>
+      <div class="glance">
+        {facts.map((f) => (
+          <div class="glance__item">
+            <span class="glance__icon"><Lucide name={f.icon} size={22} /></span>
+            <span class="glance__num">{f.num}<small>{f.unit}</small></span>
+            <strong>{f.label}</strong>
+            <p>{f.text}</p>
+            <em>{f.tag}</em>
+          </div>
+        ))}
+      </div>
+      <footer class="sheet__foot"><img src="/images/Shape-and-EU-scaled.png" alt="" /><span>shapeproject.org</span></footer>
+    </section>
+
+    <!-- 4. Challenge -->
+    <section class="sheet" id="challenge" data-title="The Challenge">
+      <header class="sheet__head"><span class="sheet__no">04</span><span class="sheet__run">02 · The Challenge</span></header>
+      <div class="split">
+        <div>
+          <span class="chapter">Chapter 02</span>
+          <h2 class="sheet__title">The Challenge</h2>
+          <p class="dropcap">{aboutParagraphs[0]}</p>
+          <p>{aboutParagraphs[1]}</p>
+        </div>
+        <aside class="split__aside">
+          <div class="stat-big"><span>93%</span><p>of local governments in Africa report skills shortages as a major barrier to smart city development.</p></div>
+          <div class="stat-big stat-big--alt"><span>29%</span><p>of African cities currently have a smart city strategy in place.</p></div>
+          <small class="source">Source: UN-Habitat, as cited at the SHAPE launch.</small>
+        </aside>
+      </div>
+      <figure class="sheet__photo"><img src="/images/slider2.png" alt="" /><figcaption>Rapid urbanisation is reshaping East African cities — and the skills they need.</figcaption></figure>
+      <footer class="sheet__foot"><img src="/images/Shape-and-EU-scaled.png" alt="" /><span>shapeproject.org</span></footer>
+    </section>
+
+    <!-- 5. Response -->
+    <section class="sheet" id="response" data-title="Our Response">
+      <header class="sheet__head"><span class="sheet__no">05</span><span class="sheet__run">03 · Our Response</span></header>
+      <span class="chapter">Chapter 03</span>
+      <h2 class="sheet__title">Our Response</h2>
+      <div class="cols-2">
+        <p>{aboutParagraphs[2]}</p>
+        <p>{aboutParagraphs[3]}</p>
+      </div>
+      <div class="gm-book">
+        <div class="gm-book__card"><span class="glance__icon"><Lucide name="Target" size={22} /></span><h3>Our Goal</h3><p>{goal}</p></div>
+        <div class="gm-book__card gm-book__card--alt"><span class="glance__icon"><Lucide name="Compass" size={22} /></span><h3>Our Mission</h3><p>{mission}</p></div>
+      </div>
+      <ul class="pillars">
+        <li><Lucide name="BookOpen" size={20} /><strong>New curricula</strong><span>Master's courses &amp; micro-credentials</span></li>
+        <li><Lucide name="Users" size={20} /><strong>Stronger staff</strong><span>Train-the-trainer programmes</span></li>
+        <li><Lucide name="FlaskConical" size={20} /><strong>Innovation labs</strong><span>Hackathons &amp; applied research</span></li>
+        <li><Lucide name="Handshake" size={20} /><strong>Lasting alliance</strong><span>EU–East Africa Smart Cities Alliance</span></li>
+      </ul>
+      <footer class="sheet__foot"><img src="/images/Shape-and-EU-scaled.png" alt="" /><span>shapeproject.org</span></footer>
+    </section>
+
+    <!-- 6. Themes -->
+    <section class="sheet sheet--tint" id="themes" data-title="Twelve Thematic Areas">
+      <header class="sheet__head"><span class="sheet__no">06</span><span class="sheet__run">04 · Twelve Thematic Areas</span></header>
+      <span class="chapter">Chapter 04</span>
+      <h2 class="sheet__title">Twelve Thematic Areas</h2>
+      <p class="lead">SHAPE's curricula and Open Innovation Labs span twelve interconnected domains shaping the future of smart, sustainable cities.</p>
+      <ol class="themes-book">
+        {thematicAreas.map((t, i) => (
+          <li><span class="themes-book__icon"><Lucide name={t.icon} size={20} /></span><span class="themes-book__n">{String(i + 1).padStart(2, '0')}</span><strong>{t.title}</strong></li>
+        ))}
+      </ol>
+      <footer class="sheet__foot"><img src="/images/Shape-and-EU-scaled.png" alt="" /><span>shapeproject.org</span></footer>
+    </section>
+
+    <!-- 7. People -->
+    <section class="sheet sheet--dark" id="people" data-title="Who We Serve">
+      <header class="sheet__head"><span class="sheet__no">07</span><span class="sheet__run">05 · Who We Serve</span></header>
+      <span class="chapter">Chapter 05</span>
+      <h2 class="sheet__title">Who We Serve</h2>
+      <p class="lead">SHAPE's impact reaches every part of the smart city ecosystem — from classrooms to city halls.</p>
+      <ul class="people">
+        {targetGroups.map((t) => <li><span><Lucide name={t.icon} size={18} /></span>{t.title}</li>)}
+      </ul>
+      <figure class="sheet__photo sheet__photo--round"><img src="/images/news/Shapeteam-12.jpeg" alt="" /><figcaption>Partners and stakeholders at the Mombasa partners meeting, 2026.</figcaption></figure>
+      <footer class="sheet__foot sheet__foot--light"><img src="/images/White-SHAPE-final-Logo-1-1024x431.png" alt="" /><span>shapeproject.org</span></footer>
+    </section>
+
+    <!-- 8. Consortium -->
+    <section class="sheet" id="consortium" data-title="The Consortium">
+      <header class="sheet__head"><span class="sheet__no">08</span><span class="sheet__run">06 · The Consortium</span></header>
+      <span class="chapter">Chapter 06</span>
+      <h2 class="sheet__title">The Consortium</h2>
+      <div class="coord-book">
+        <span class="coord-book__badge">Coordinator</span>
+        <img src="/images/moi-university.png" alt="Moi University" />
+        <div><strong>{coordinator.institution}, {coordinator.country}</strong><span>{coordinator.name} · {coordinator.role}</span></div>
+      </div>
+      <div class="partners-book">
+        {partners.filter((p) => p.role !== 'Coordinator').map((p) => (
+          <div class="partners-book__item">
+            <img class="partners-book__logo" src={p.logo} alt={`${p.name} logo`} />
+            <strong>{p.name}</strong>
+            <span><img src={`https://flagcdn.com/w40/${p.flag}.png`} alt="" width="18" height="12" /> {p.country}</span>
+          </div>
+        ))}
+      </div>
+      <h3 class="sub">Associated partners</h3>
+      <ul class="assoc-book">
+        {associatedPartners.map((a) => <li><img src={`https://flagcdn.com/w40/${a.flag}.png`} alt="" width="18" height="12" /> <strong>{a.name}</strong> · {a.country}</li>)}
+      </ul>
+      <footer class="sheet__foot"><img src="/images/Shape-and-EU-scaled.png" alt="" /><span>shapeproject.org</span></footer>
+    </section>
+
+    <!-- 9. Work plan -->
+    <section class="sheet" id="workplan" data-title="Work Plan">
+      <header class="sheet__head"><span class="sheet__no">09</span><span class="sheet__run">07 · Work Plan</span></header>
+      <span class="chapter">Chapter 07</span>
+      <h2 class="sheet__title">Work Plan</h2>
+      <p class="lead">Five coordinated Work Packages carry SHAPE from research through to a lasting EU–East Africa alliance.</p>
+      <div class="wp-book">
+        {workPackages.map((w) => (
+          <article style={`--wp:${w.color};--wp-tint:${w.tint}`}>
+            <span class="wp-book__num">{String(w.wp).padStart(2, '0')}</span>
+            <span class="wp-book__icon"><Lucide name={w.icon} size={20} /></span>
+            <div>
+              <span class="wp-book__label">Work Package {w.wp} · M{w.start}–M{w.end}</span>
+              <h3>{w.title}</h3>
+              <p>{w.summary}</p>
+              <span class="wp-book__lead"><Lucide name="House" size={13} /> Lead: <b>{w.lead}</b></span>
+            </div>
+          </article>
+        ))}
+      </div>
+      <footer class="sheet__foot"><img src="/images/Shape-and-EU-scaled.png" alt="" /><span>shapeproject.org</span></footer>
+    </section>
+
+    <!-- 10. Timeline -->
+    <section class="sheet" id="timeline" data-title="Timeline & Deliverables">
+      <header class="sheet__head"><span class="sheet__no">10</span><span class="sheet__run">08 · Timeline &amp; Deliverables</span></header>
+      <span class="chapter">Chapter 08</span>
+      <h2 class="sheet__title">Timeline &amp; Deliverables</h2>
+      <p class="lead">36 months, five Work Packages and {deliverableCount} deliverables.</p>
+      <div class="gantt-book">
+        <div class="gantt-book__years"><span></span><span>2025</span><span>2026</span><span>2027</span></div>
+        {workPackages.map((w) => (
+          <div class="gantt-book__row">
+            <span class="gantt-book__label" style={`color:${w.color}`}>WP{w.wp}</span>
+            <div class="gantt-book__track"><span style={`left:${col(w.start)};width:${width(w.start, w.end)};background:${w.color}`}></span></div>
+          </div>
+        ))}
+      </div>
+      <div class="dlv-book">
+        {workPackages.map((w) => (
+          <div class="dlv-book__col" style={`--wp:${w.color}`}>
+            <strong>WP{w.wp}</strong>
+            <ul>{w.deliverables.map((d) => <li><b>{d.code}</b> {d.desc}</li>)}</ul>
+          </div>
+        ))}
+      </div>
+      <footer class="sheet__foot"><img src="/images/Shape-and-EU-scaled.png" alt="" /><span>shapeproject.org</span></footer>
+    </section>
+
+    <!-- 11. Impact -->
+    <section class="sheet sheet--gradient" id="impact" data-title="Expected Impact">
+      <header class="sheet__head"><span class="sheet__no">11</span><span class="sheet__run">09 · Expected Impact</span></header>
+      <span class="chapter">Chapter 09</span>
+      <h2 class="sheet__title">Expected Impact</h2>
+      <p class="lead">What success looks like when SHAPE reaches the end of its three-year journey — for institutions, graduates, and the region.</p>
+      <ol class="impact-book">
+        {impacts.map((m, i) => (
+          <li><span class="impact-book__n">{String(i + 1).padStart(2, '0')}</span><div><strong>{m.title}</strong><p>{m.text}</p></div></li>
+        ))}
+      </ol>
+      <footer class="sheet__foot sheet__foot--light"><img src="/images/White-SHAPE-final-Logo-1-1024x431.png" alt="" /><span>shapeproject.org</span></footer>
+    </section>
+
+    <!-- 12. Journey -->
+    <section class="sheet" id="journey" data-title="The Journey So Far">
+      <header class="sheet__head"><span class="sheet__no">12</span><span class="sheet__run">10 · The Journey So Far</span></header>
+      <span class="chapter">Chapter 10</span>
+      <h2 class="sheet__title">The Journey So Far</h2>
+      <div class="journey">
+        {pastEvents.map((e) => (
+          <article>
+            <img src={e.image} alt="" />
+            <div>
+              <span class="journey__date">{fmt(e.start)}{e.end ? ` – ${fmt(e.end)}` : ''} · {e.location}</span>
+              <h3>{e.title}</h3>
+              <p>{e.text}</p>
+            </div>
+          </article>
+        ))}
+      </div>
+      <div class="mosaic">
+        {[3, 7, 10, 14, 16, 18].map((n) => <img src={`/images/news/Shapeteam-${n}.jpeg`} alt="" />)}
+      </div>
+      <p class="next"><Lucide name="ArrowRight" size={16} /> Next: Train-the-Trainer sandbox, three Open Innovation Hackathons and the first pilot-course cohort (2027).</p>
+      <footer class="sheet__foot"><img src="/images/Shape-and-EU-scaled.png" alt="" /><span>shapeproject.org</span></footer>
+    </section>
+
+    <!-- 13. Back cover -->
+    <section class="sheet sheet--back" id="contact" data-title="Get in Touch">
+      <img class="cover__bg" src="/images/slider3.png" alt="" />
+      <div class="cover__shade cover__shade--back"></div>
+      <div class="back">
+        <img src="/images/White-SHAPE-final-Logo-1-1024x431.png" alt="SHAPE" class="cover__logo" />
+        <h2>Get in Touch</h2>
+        <p>Join us in shaping smarter, more inclusive cities across East Africa.</p>
+        <ul class="back__contact">
+          <li><Lucide name="Globe" size={18} /> shapeproject.org</li>
+          <li><Lucide name="Mail" size={18} /> {contact.email}</li>
+          <li><Lucide name="Phone" size={18} /> {contact.phone}</li>
+          <li><Lucide name="AtSign" size={18} /> @shapeprojecteu on {socials.map((s) => s.name).join(', ')}</li>
+        </ul>
+        <div class="back__host"><span>Hosted by</span><img src="/images/ouk-logo.png" alt="Open University of Kenya" /></div>
+        <div class="back__eu">
+          <img src="/images/EU-scaled.png" alt="Co-funded by the Erasmus+ Programme of the European Union" />
+          <p>{disclaimer}</p>
+        </div>
+      </div>
+    </section>
+  </div>
+
+  <script>
+    const sheets = [...document.querySelectorAll<HTMLElement>('.sheet')];
+    const indicator = document.querySelector<HTMLElement>('[data-page-indicator]')!;
+    const progress = document.querySelector<HTMLElement>('[data-progress]')!;
+    const tocLinks = [...document.querySelectorAll<HTMLAnchorElement>('[data-toc] a')];
+    const toc = document.querySelector<HTMLElement>('[data-toc]')!;
+    const tocToggle = document.querySelector<HTMLButtonElement>('[data-toc-toggle]')!;
+
+    // Page indicator + active chapter
+    const io = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((en) => {
+          if (!en.isIntersecting) return;
+          const el = en.target as HTMLElement;
+          const i = sheets.indexOf(el);
+          indicator.textContent = `${el.dataset.title} · ${i + 1} / ${sheets.length}`;
+          tocLinks.forEach((a) => a.classList.toggle('is-active', a.hash === `#${el.id}`));
+        });
+      },
+      { rootMargin: '-45% 0px -50% 0px' },
+    );
+    sheets.forEach((s) => io.observe(s));
+
+    // Reading progress
+    const onScroll = () => {
+      const book = document.querySelector<HTMLElement>('.book')!;
+      const r = book.getBoundingClientRect();
+      const p = Math.min(Math.max(-r.top / (r.height - innerHeight), 0), 1);
+      progress.style.width = `${p * 100}%`;
+    };
+    addEventListener('scroll', onScroll, { passive: true });
+    onScroll();
+
+    // Contents drawer
+    tocToggle.addEventListener('click', () => {
+      const open = toc.classList.toggle('is-open');
+      tocToggle.setAttribute('aria-expanded', String(open));
+    });
+    tocLinks.forEach((a) => a.addEventListener('click', () => { if (innerWidth < 1280) { toc.classList.remove('is-open'); tocToggle.setAttribute('aria-expanded', 'false'); } }));
+
+    // Actions
+    document.querySelector('[data-print]')!.addEventListener('click', () => print());
+    const copyBtn = document.querySelector<HTMLButtonElement>('[data-copy]')!;
+    copyBtn.addEventListener('click', async () => {
+      try {
+        await navigator.clipboard.writeText(location.href.split('#')[0]);
+        copyBtn.querySelector('span')!.textContent = 'Copied!';
+        setTimeout(() => (copyBtn.querySelector('span')!.textContent = 'Copy link'), 1800);
+      } catch {}
+    });
+
+    // Reveal-on-scroll
+    const rv = new IntersectionObserver((es) => es.forEach((e) => e.isIntersecting && e.target.classList.add('is-in')), { threshold: 0.08 });
+    sheets.forEach((s) => rv.observe(s));
+  </script>
+</Base>

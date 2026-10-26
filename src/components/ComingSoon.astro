@@ -1,0 +1,13 @@
+---
+interface Props {
+  text: string;
+}
+const { text } = Astro.props;
+---
+
+<section class="section">
+  <div class="container empty-state">
+    <p>{text}</p>
+    <a class="btn btn--outline" href="/news/">Read the latest news</a>
+  </div>
+</section>

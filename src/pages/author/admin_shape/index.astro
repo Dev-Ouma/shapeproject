@@ -1,0 +1,9 @@
+---
+import Base from '../../../layouts/Base.astro';
+import PostArchive from '../../../components/PostArchive.astro';
+import { news } from '../../../data/news';
+---
+
+<Base title="admin">
+  <PostArchive heading="Author" label="admin" posts={news} />
+</Base>

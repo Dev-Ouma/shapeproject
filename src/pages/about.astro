@@ -1,0 +1,88 @@
+---
+import Base from '../layouts/Base.astro';
+import Lucide from '../components/Lucide.astro';
+import NetworkBg from '../components/NetworkBg.astro';
+import { aboutParagraphs, goal, mission, thematicAreas, targetGroups, impacts } from '../data/site';
+---
+
+<Base title="About">
+  <section class="section about-intro">
+    <div class="container narrow-wide">
+      <h1 class="about-intro__title">About SHAPE</h1>
+      {aboutParagraphs.map((p) => <p>{p}</p>)}
+    </div>
+  </section>
+
+  <section class="section about-visual">
+    <div class="container about-visual__grid">
+      <figure class="blob">
+        <img src="/images/projabout.png" alt="SHAPE — Smart City Higher Education Advancement Program in East Africa" width="1024" height="1024" />
+        <span class="blob__chip blob__chip--1"><span class="icon-tile icon-tile--sm"><Lucide name="Lightbulb" size={14} /></span>AI &amp; Open Data</span>
+        <span class="blob__chip blob__chip--2"><span class="icon-tile icon-tile--sm"><Lucide name="Bus" size={14} /></span>Smart Mobility</span>
+        <span class="blob__chip blob__chip--3"><span class="icon-tile icon-tile--sm"><Lucide name="FlaskConical" size={14} /></span>Open Innovation Labs</span>
+      </figure>
+      <div class="gm">
+        <article class="gm__card">
+          <span class="icon-tile icon-tile--round"><Lucide name="Target" size={20} /></span>
+          <div><h3>Our Goal</h3><p>{goal}</p></div>
+        </article>
+        <article class="gm__card">
+          <span class="icon-tile icon-tile--round"><Lucide name="Check" size={20} /></span>
+          <div><h3>Our Mission</h3><p>{mission}</p></div>
+        </article>
+        <a class="btn btn--grad" href="#thematic">Learn More About SHAPE <Lucide name="ArrowRight" size={16} /></a>
+      </div>
+    </div>
+  </section>
+
+  <section class="section themes-section" id="thematic">
+    <div class="container">
+      <header class="section-head">
+        <h2>Thematic Areas</h2>
+        <p>SHAPE's curricula and Open Innovation Labs span twelve interconnected domains shaping the future of smart, sustainable cities.</p>
+      </header>
+      <ul class="themes">
+        {thematicAreas.map((t) => (
+          <li class="theme-card"><span class="icon-badge"><Lucide name={t.icon} size={24} /></span><h3 class="theme-title">{t.title}</h3></li>
+        ))}
+      </ul>
+    </div>
+  </section>
+
+  <section class="section targets-section" id="target-groups">
+    <div class="container">
+      <header class="section-head">
+        <h2>Target Groups</h2>
+        <p>SHAPE's impact reaches every part of the smart city ecosystem — from classrooms to city halls.</p>
+      </header>
+      <ul class="targets">
+        {targetGroups.map((t) => (
+          <li><a href="#target-groups"><span class="targets__icon"><Lucide name={t.icon} size={16} /></span>{t.title}</a></li>
+        ))}
+      </ul>
+    </div>
+  </section>
+
+  <section class="section impacts-section" id="impacts">
+    <NetworkBg light />
+    <div class="container">
+      <header class="section-head">
+        <h2>Expected Project Impacts</h2>
+        <p>What success looks like when SHAPE reaches the end of its three-year journey — for institutions, graduates, and the region.</p>
+      </header>
+      <ol class="timeline">
+        {impacts.map((m, i) => (
+          <li class:list={['timeline__item', i % 2 === 0 ? 'is-left' : 'is-right']}>
+            <article class="timeline__card">
+              <div class="timeline__head">
+                <span class="icon-tile impact-icon"><Lucide name={m.icon} size={18} /></span>
+                <div><span class="timeline__n">{String(i + 1).padStart(2, '0')}</span><h3>{m.title}</h3></div>
+              </div>
+              <p>{m.text}</p>
+            </article>
+          </li>
+        ))}
+      </ol>
+    </div>
+  </section>
+</Base>

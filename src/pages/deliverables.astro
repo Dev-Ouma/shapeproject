@@ -1,0 +1,135 @@
+---
+import Base from '../layouts/Base.astro';
+import Lucide from '../components/Lucide.astro';
+import { workPackages, wpStatus, wpProgress, statusLabel } from '../data/site';
+
+const leads = [...new Set(workPackages.map((w) => w.lead))];
+---
+
+<Base title="Deliverables">
+  <section class="section wp-section">
+    <div class="container">
+      <header class="section-head section-head--plain">
+        <h1 class="h-xl">Work Packages</h1>
+        <p>Five coordinated Work Packages carry SHAPE from research through to a lasting EU–East Africa alliance.</p>
+      </header>
+      <div class="wp-grid">
+        {workPackages.map((w) => (
+          <article class="wp" style={`--wp:${w.color};--wp-tint:${w.tint}`}>
+            <span class="wp__icon"><Lucide name={w.icon} size={26} /></span>
+            <span class="wp__label">Work Package {w.wp}</span>
+            <h3>{w.title}</h3>
+            <p>{w.summary}</p>
+            <div class="wp__lead"><Lucide name="House" size={14} /><span>Lead</span><strong>{w.lead}</strong></div>
+            <span class="wp__num" aria-hidden="true">{String(w.wp).padStart(2, '0')}</span>
+          </article>
+        ))}
+      </div>
+    </div>
+  </section>
+
+  <section class="section section--white" id="deliverables-list">
+    <div class="container dl">
+      <header class="section-head">
+        <h2>Deliverables</h2>
+        <p>A clean list of everything SHAPE will produce, grouped by Work Package.</p>
+      </header>
+      <div class="dl__controls" data-filters>
+        <label class="dl__search">
+          <Lucide name="Search" size={16} />
+          <input type="text" placeholder="Search…" aria-label="Search deliverables" data-search />
+        </label>
+        <div class="dl__chips">
+          <button class="chip is-active" type="button" data-status="">All</button>
+          <button class="chip" type="button" data-status="done"><i class="dot dot--done"></i>Completed</button>
+          <button class="chip" type="button" data-status="progress"><i class="dot dot--progress"></i>In Progress</button>
+          <button class="chip" type="button" data-status="upcoming"><i class="dot dot--upcoming"></i>Upcoming</button>
+          <select class="dl__select" aria-label="Filter by Lead Beneficiary" data-lead>
+            <option value="">All Leads</option>
+            {leads.map((l) => <option value={l}>{l}</option>)}
+          </select>
+        </div>
+      </div>
+      <p class="dl__empty" hidden data-empty>No deliverables match your filters.</p>
+      <div class="dl__list">
+        {workPackages.map((w) => {
+          const s = wpStatus(w);
+          const pct = wpProgress(w);
+          const name = ('listTitle' in w && w.listTitle) || w.title;
+          return (
+            <div class="dl__group" data-status={s} data-lead={w.lead}>
+              <div class="dl__head">
+                <span class="dl__wp">WP{w.wp} · {name}</span>
+                <span class="dl__lead">{w.lead}</span>
+                <span class="dl__time">Month {w.start}–{w.end}</span>
+              </div>
+              {w.deliverables.map((d) => (
+                <div class="dl__row" data-search={`${name} ${w.lead} ${d.code} ${d.desc}`.toLowerCase()}>
+                  <button class="dl__main" type="button" aria-expanded="false">
+                    <i class={`dot dot--${s}`} title={statusLabel[s]}></i>
+                    <span class="dl__code">{d.code}</span>
+                    <span class="dl__desc">{d.desc}</span>
+                    <span class="dl__due">Due M{w.end}</span>
+                    <Lucide name="ChevronDown" size={16} class="dl__chev" />
+                  </button>
+                  <div class="dl__detail">
+                    <div class="dl__detail-inner">
+                      <p>{d.desc} — led by {w.lead}.</p>
+                      <div class="dl__track"><span style={`width:${pct}%`}></span></div>
+                      <small>{statusLabel[s]} · {pct}% of Work Package timeline elapsed</small>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  </section>
+
+  <script>
+    const root = document.querySelector<HTMLElement>('[data-filters]')!;
+    const search = root.querySelector<HTMLInputElement>('[data-search]')!;
+    const lead = root.querySelector<HTMLSelectElement>('[data-lead]')!;
+    const chips = [...root.querySelectorAll<HTMLButtonElement>('.chip')];
+    const groups = [...document.querySelectorAll<HTMLElement>('.dl__group')];
+    const empty = document.querySelector<HTMLElement>('[data-empty]')!;
+    let status = '';
+
+    function apply() {
+      const q = search.value.trim().toLowerCase();
+      let any = false;
+      groups.forEach((g) => {
+        const groupOk = (!status || g.dataset.status === status) && (!lead.value || g.dataset.lead === lead.value);
+        let rows = 0;
+        g.querySelectorAll<HTMLElement>('.dl__row').forEach((r) => {
+          const ok = groupOk && (!q || r.dataset.search!.includes(q));
+          r.hidden = !ok;
+          if (ok) rows++;
+        });
+        g.hidden = rows === 0;
+        if (rows) any = true;
+      });
+      empty.hidden = any;
+    }
+
+    chips.forEach((c) =>
+      c.addEventListener('click', () => {
+        chips.forEach((x) => x.classList.toggle('is-active', x === c));
+        status = c.dataset.status ?? '';
+        apply();
+      }),
+    );
+    search.addEventListener('input', apply);
+    lead.addEventListener('change', apply);
+
+    document.querySelectorAll<HTMLButtonElement>('.dl__main').forEach((b) =>
+      b.addEventListener('click', () => {
+        const row = b.parentElement!;
+        const open = row.classList.toggle('is-open');
+        b.setAttribute('aria-expanded', String(open));
+      }),
+    );
+  </script>
+</Base>

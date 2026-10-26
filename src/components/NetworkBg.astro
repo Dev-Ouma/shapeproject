@@ -1,0 +1,27 @@
+---
+// Decorative node-and-line pattern behind light sections, as on the original site.
+interface Props {
+  light?: boolean;
+}
+const { light = false } = Astro.props;
+const nodes = [
+  [4, 6], [22, 13], [36, 7], [58, 12], [71, 4], [90, 10],
+  [12, 38], [30, 30], [55, 34], [78, 28], [95, 40],
+  [6, 70], [26, 62], [48, 72], [66, 60], [86, 74],
+  [16, 92], [40, 96], [62, 90], [84, 96],
+];
+const links = [
+  [0, 1], [1, 2], [2, 3], [3, 4], [4, 5], [1, 7], [3, 8], [5, 9], [6, 7], [7, 8], [8, 9], [9, 10],
+  [6, 11], [7, 12], [8, 13], [9, 14], [10, 15], [11, 12], [12, 13], [13, 14], [14, 15],
+  [11, 16], [13, 17], [14, 18], [15, 19], [16, 17], [17, 18], [18, 19],
+];
+---
+
+<svg class:list={['network-bg', { 'network-bg--light': light }]} viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
+  {links.map(([a, b]) => (
+    <line x1={nodes[a][0]} y1={nodes[a][1]} x2={nodes[b][0]} y2={nodes[b][1]} vector-effect="non-scaling-stroke" />
+  ))}
+  {nodes.map(([x, y], i) => (
+    <circle cx={x} cy={y} r="0.35" class={i % 3 === 0 ? 'gold' : ''} />
+  ))}
+</svg>

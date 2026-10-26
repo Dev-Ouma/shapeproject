@@ -1,0 +1,19 @@
+---
+import { partners } from '../data/site';
+---
+
+<div class="partner-grid">
+  {partners.map((p) => (
+    <a class="partner" href={p.url} target="_blank" rel="noopener">
+      <img class="partner__flag" src={`https://flagcdn.com/w80/${p.flag}.png`} alt={`${p.country} flag`} width="28" height="20" loading="lazy" />
+      <div class="partner__logo"><img src={p.logo} alt={`${p.name} logo`} loading="lazy" /></div>
+      <strong class="partner__name">{p.name}</strong>
+      <span class="partner__role">{p.role}</span>
+      <div class="partner__back">
+        <strong>{p.name}</strong>
+        <p>{p.country} — {p.text}</p>
+        <span class="partner__visit">Visit Website →</span>
+      </div>
+    </a>
+  ))}
+</div>

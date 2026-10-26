@@ -1,0 +1,23 @@
+---
+import { formatDate, type NewsPost } from '../data/news';
+import Lucide from './Lucide.astro';
+interface Props {
+  post: NewsPost;
+}
+const { post } = Astro.props;
+const words = post.excerpt.split(/\s+/);
+const caption = words.length > 20 ? words.slice(0, 20).join(' ') + '…' : post.excerpt;
+---
+
+<article class="news-card">
+  <a href={`/news/${post.slug}/`} class="news-card__img" aria-hidden="true" tabindex="-1">
+    {post.image ? <img src={post.image} alt="" loading="lazy" width="600" height="400" /> : <div class="news-card__ph" />}
+    <span class="news-card__cat">{post.category}</span>
+  </a>
+  <div class="news-card__body">
+    <time datetime={post.date.toISOString()}>{formatDate(post.date)}</time>
+    <h3><a href={`/news/${post.slug}/`}>{post.title}</a></h3>
+    <p>{caption}</p>
+    <a class="news-card__more" href={`/news/${post.slug}/`}>Read More <Lucide name="ArrowRight" size={16} /></a>
+  </div>
+</article>

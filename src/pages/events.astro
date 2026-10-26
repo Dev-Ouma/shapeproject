@@ -1,0 +1,155 @@
+---
+import Base from '../layouts/Base.astro';
+import Lucide from '../components/Lucide.astro';
+import { events } from '../data/programme';
+import { workPackages, CURRENT_PROJECT_MONTH, PROJECT_MONTHS, wpStatus, statusLabel } from '../data/site';
+
+const months = Array.from({ length: PROJECT_MONTHS }, (_, i) => i + 1);
+const monthName = (m: number) => new Date(Date.UTC(2025, m - 1, 1)).toLocaleDateString('en-GB', { month: 'short', timeZone: 'UTC' });
+const years = [2025, 2026, 2027];
+const pct = Math.round((CURRENT_PROJECT_MONTH / PROJECT_MONTHS) * 100);
+const col = (m: number) => `${((m - 1) / PROJECT_MONTHS) * 100}%`;
+const width = (s: number, e: number) => `${((e - s + 1) / PROJECT_MONTHS) * 100}%`;
+const nextMilestone = workPackages
+  .flatMap((w) => w.deliverables.map((d) => ({ ...d, due: w.end, wp: w.wp })))
+  .filter((d) => d.due >= CURRENT_PROJECT_MONTH)
+  .sort((a, b) => a.due - b.due)[0];
+
+const fmt = (iso: string) =>
+  iso.length === 7
+    ? new Date(iso + '-01T00:00:00Z').toLocaleDateString('en-GB', { month: 'long', year: 'numeric', timeZone: 'UTC' })
+    : new Date(iso + 'T00:00:00Z').toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC' });
+const day = (iso: string) => (iso.length === 7 ? '—' : String(new Date(iso + 'T00:00:00Z').getUTCDate()));
+const mon = (iso: string) => new Date((iso.length === 7 ? iso + '-01' : iso) + 'T00:00:00Z').toLocaleDateString('en-GB', { month: 'short', timeZone: 'UTC' });
+const yr = (iso: string) => iso.slice(0, 4);
+const typeIcon = { Meeting: 'Users', Launch: 'Rocket', Hackathon: 'Code', Training: 'GraduationCap', Pilot: 'FlaskConical' } as const;
+---
+
+<Base title="Events" description="SHAPE events, milestones and the 36-month project timeline.">
+  <section class="section wp-section">
+    <div class="container">
+      <header class="section-head">
+        <span class="eyebrow">Events &amp; timeline</span>
+        <h1 class="h-xl">Events</h1>
+        <p>Where SHAPE meets, trains and builds — and how the 36-month programme unfolds.</p>
+      </header>
+
+      <div class="ev-stats">
+        <div class="ev-ring" style={`--p:${pct}`}>
+          <svg viewBox="0 0 120 120" aria-hidden="true"><circle cx="60" cy="60" r="52" /><circle cx="60" cy="60" r="52" class="ev-ring__fill" /></svg>
+          <div><strong>{pct}%</strong><span>elapsed</span></div>
+        </div>
+        <div class="ev-stat"><Lucide name="CalendarDays" size={22} /><strong>Month {CURRENT_PROJECT_MONTH}</strong><span>of {PROJECT_MONTHS}</span></div>
+        <div class="ev-stat"><Lucide name="Flag" size={22} /><strong>{events.filter((e) => !e.planned).length} held</strong><span>{events.filter((e) => e.planned).length} planned</span></div>
+        {nextMilestone && (
+          <div class="ev-stat ev-stat--wide"><Lucide name="Target" size={22} /><strong>Next: {nextMilestone.code}</strong><span>{nextMilestone.desc} · due M{nextMilestone.due}</span></div>
+        )}
+      </div>
+    </div>
+  </section>
+
+  <section class="section section--white">
+    <div class="container">
+      <header class="section-head">
+        <h2>Project Timeline</h2>
+        <p>Work Packages across the 36 months, with deliverable deadlines and events. Hover a bar or marker for details.</p>
+      </header>
+
+      <div class="gantt-scroll" tabindex="0" aria-label="Project Gantt chart, scrollable">
+        <div class="gantt" style={`--months:${PROJECT_MONTHS}`}>
+          <div class="gantt__label gantt__corner"></div>
+          <div class="gantt__years">
+            {years.map((y) => <span>{y}</span>)}
+          </div>
+          <div class="gantt__label gantt__corner"></div>
+          <div class="gantt__months">
+            {months.map((m) => <span class:list={{ 'is-now': m === CURRENT_PROJECT_MONTH }} title={`Month ${m}`}>{monthName(m)[0]}</span>)}
+          </div>
+
+          {workPackages.map((w) => {
+            const s = wpStatus(w);
+            const done = Math.min(Math.max(CURRENT_PROJECT_MONTH - w.start + 1, 0), w.end - w.start + 1);
+            return (
+              <Fragment>
+                <div class="gantt__label" style={`--wp:${w.color}`}><b>WP{w.wp}</b><span>{w.lead}</span></div>
+                <div class="gantt__track">
+                  <div class="gantt__bar" style={`--wp:${w.color};--wp-tint:${w.tint};left:${col(w.start)};width:${width(w.start, w.end)};--done:${(done / (w.end - w.start + 1)) * 100}%`} tabindex="0">
+                    <span class="gantt__bar-text">{w.title}</span>
+                    <span class="gantt__tip"><b>WP{w.wp} · {statusLabel[s]}</b>{w.title}<br />M{w.start}–M{w.end} · Lead: {w.lead}<br />{w.deliverables.length} deliverables</span>
+                  </div>
+                  <span class="gantt__diamond" style={`--wp:${w.color};left:${col(w.end)}`} tabindex="0">
+                    <span class="gantt__tip"><b>Due M{w.end}</b>{w.deliverables.map((d) => d.code).join(', ')}</span>
+                  </span>
+                </div>
+              </Fragment>
+            );
+          })}
+
+          <div class="gantt__label"><b>Events</b><span>held &amp; planned</span></div>
+          <div class="gantt__track gantt__track--events">
+            {events.map((e) => (
+              <span class:list={['gantt__event', { 'is-planned': e.planned }]} style={`left:${col(e.month)}`} tabindex="0">
+                <Lucide name={typeIcon[e.type]} size={14} />
+                <span class="gantt__tip"><b>{e.title}</b>{fmt(e.start)}{e.end ? ` – ${fmt(e.end)}` : ''}<br />{e.location}{e.planned ? ' · planned' : ''}</span>
+              </span>
+            ))}
+          </div>
+
+          <div class="gantt__now" style={`left:calc(var(--label-w) + (100% - var(--label-w)) * ${(CURRENT_PROJECT_MONTH - 0.5) / PROJECT_MONTHS})`}><span>Today</span></div>
+        </div>
+      </div>
+      <ul class="gantt-legend">
+        <li><i class="lg-bar"></i> Work Package (filled part = elapsed)</li>
+        <li><i class="lg-diamond"></i> Deliverables due</li>
+        <li><i class="lg-event"></i> Event held</li>
+        <li><i class="lg-event lg-event--planned"></i> Event planned</li>
+        <li><i class="lg-now"></i> Today</li>
+      </ul>
+    </div>
+  </section>
+
+  <section class="section section--alt" id="events-list">
+    <div class="container">
+      <header class="section-head">
+        <h2>Events</h2>
+        <p>Meetings, launches, trainings and hackathons across the consortium.</p>
+      </header>
+      <div class="dl__chips ev-tabs" role="group" aria-label="Filter events" data-ev-filter>
+        <button class="chip is-active" type="button" data-f="">All</button>
+        <button class="chip" type="button" data-f="past">Held</button>
+        <button class="chip" type="button" data-f="planned">Planned</button>
+      </div>
+      <div class="ev-list">
+        {events.map((e) => (
+          <article class:list={['ev-card', { 'is-planned': e.planned }]} data-state={e.planned ? 'planned' : 'past'}>
+            <div class="ev-card__date">
+              <strong>{day(e.start)}</strong><span>{mon(e.start)}</span><em>{yr(e.start)}</em>
+            </div>
+            {e.image ? <img class="ev-card__img" src={e.image} alt="" loading="lazy" /> : <div class="ev-card__img ev-card__img--ph"><Lucide name={typeIcon[e.type]} size={40} /></div>}
+            <div class="ev-card__body">
+              <div class="ev-card__tags">
+                <span class={`ev-type ev-type--${e.type.toLowerCase()}`}><Lucide name={typeIcon[e.type]} size={13} /> {e.type}</span>
+                <span class={`status status--${e.planned ? 'upcoming' : 'done'}`}>{e.planned ? 'Planned · dates TBC' : 'Held'}</span>
+              </div>
+              <h3>{e.title}</h3>
+              <p class="ev-card__meta"><Lucide name="CalendarDays" size={14} /> {fmt(e.start)}{e.end ? ` – ${fmt(e.end)}` : ''} <Lucide name="MapPin" size={14} /> {e.location}</p>
+              <p>{e.text}</p>
+              {e.link && <a class="news-card__more" href={e.link}>Read the story <Lucide name="ArrowRight" size={16} /></a>}
+            </div>
+          </article>
+        ))}
+      </div>
+    </div>
+  </section>
+
+  <script>
+    const chips = [...document.querySelectorAll<HTMLButtonElement>('[data-ev-filter] .chip')];
+    const cards = [...document.querySelectorAll<HTMLElement>('.ev-card')];
+    chips.forEach((c) =>
+      c.addEventListener('click', () => {
+        chips.forEach((x) => x.classList.toggle('is-active', x === c));
+        cards.forEach((card) => (card.hidden = !!c.dataset.f && card.dataset.state !== c.dataset.f));
+      }),
+    );
+  </script>
+</Base>

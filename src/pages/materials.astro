@@ -1,0 +1,167 @@
+---
+import { statSync } from 'node:fs';
+import { join } from 'node:path';
+import Base from '../layouts/Base.astro';
+import Lucide from '../components/Lucide.astro';
+import { brandAssets, photoAlbums } from '../data/programme';
+import { workPackages, wpStatus, statusLabel, disclaimer } from '../data/site';
+
+const size = (file: string) => {
+  try {
+    const b = statSync(join(process.cwd(), 'public', file)).size;
+    return b > 1e6 ? `${(b / 1e6).toFixed(1)} MB` : `${Math.round(b / 1e3)} KB`;
+  } catch {
+    return '';
+  }
+};
+const ext = (file: string) => file.split('.').pop()!.toUpperCase().replace('JPEG', 'JPG');
+const docs = workPackages.flatMap((w) => w.deliverables.map((d) => ({ ...d, wp: w.wp, color: w.color, tint: w.tint, due: w.end, status: wpStatus(w) })));
+const photoCount = photoAlbums.reduce((n, a) => n + a.photos.length, 0);
+---
+
+<Base title="Materials" description="SHAPE brand assets, project documents and photo gallery.">
+  <section class="section wp-section">
+    <div class="container">
+      <header class="section-head">
+        <span class="eyebrow">Resource library</span>
+        <h1 class="h-xl">Materials</h1>
+        <p>Logos, project documents and photos from SHAPE — free to use for communicating about the project.</p>
+      </header>
+      <div class="mat-search">
+        <label class="dl__search">
+          <Lucide name="Search" size={16} />
+          <input type="text" placeholder="Search materials…" aria-label="Search materials" data-mat-search />
+        </label>
+        <div class="dl__chips" role="group" aria-label="Filter by type" data-mat-filter>
+          <button class="chip is-active" type="button" data-t="">All</button>
+          <button class="chip" type="button" data-t="brand"><Lucide name="Palette" size={14} /> Brand kit</button>
+          <button class="chip" type="button" data-t="doc"><Lucide name="FileText" size={14} /> Documents</button>
+          <button class="chip" type="button" data-t="photo"><Lucide name="Images" size={14} /> Photos</button>
+        </div>
+      </div>
+      <div class="mat-counts">
+        <a href="#brand" class="mat-count"><Lucide name="Palette" size={22} /><strong>{brandAssets.length}</strong><span>brand files</span></a>
+        <a href="#docs" class="mat-count"><Lucide name="FileText" size={22} /><strong>{docs.length}</strong><span>planned documents</span></a>
+        <a href="#photos" class="mat-count"><Lucide name="Images" size={22} /><strong>{photoCount}</strong><span>photos</span></a>
+      </div>
+    </div>
+  </section>
+
+  <section class="section section--white mat-section" id="brand" data-type="brand">
+    <div class="container">
+      <header class="section-head"><h2>Brand Kit</h2><p>Official SHAPE and EU visibility logos. Keep the EU emblem on every output funded by the project.</p></header>
+      <div class="brand-grid">
+        {brandAssets.map((a) => (
+          <article class="brand-card" data-search={a.title.toLowerCase()}>
+            <div class:list={['brand-card__preview', { 'is-dark': a.dark }]}><img src={a.file} alt={a.title} loading="lazy" /></div>
+            <div class="brand-card__body">
+              <h3>{a.title}</h3>
+              <p>{a.note}</p>
+              <div class="brand-card__foot">
+                <span>{ext(a.file)} · {size(a.file)}</span>
+                <a class="dl-btn" href={a.file} download><Lucide name="Download" size={16} /> Download</a>
+              </div>
+            </div>
+          </article>
+        ))}
+      </div>
+      <p class="mat-note"><Lucide name="Info" size={16} /> {disclaimer}</p>
+    </div>
+  </section>
+
+  <section class="section section--alt mat-section" id="docs" data-type="doc">
+    <div class="container">
+      <header class="section-head"><h2>Project Documents</h2><p>Reports and outputs from each Work Package. Documents become downloadable here as they are approved.</p></header>
+      <div class="doc-grid">
+        {docs.map((d) => (
+          <article class="doc-card" style={`--wp:${d.color};--wp-tint:${d.tint}`} data-search={`${d.code} ${d.desc}`.toLowerCase()}>
+            <div class="doc-card__icon"><Lucide name="FileText" size={22} /><span>{d.code}</span></div>
+            <div class="doc-card__body">
+              <span class="doc-card__wp">Work Package {d.wp}</span>
+              <h3>{d.desc}</h3>
+              <div class="doc-card__foot">
+                {d.status === 'done' ? <span class="status status--pending">Awaiting publication</span> : <span class={`status status--${d.status}`}>{statusLabel[d.status]}</span>}
+                <span class="doc-card__due">Expected M{d.due}</span>
+              </div>
+            </div>
+            <span class="doc-card__lock" title="Not yet published"><Lucide name="Clock" size={16} /></span>
+          </article>
+        ))}
+      </div>
+    </div>
+  </section>
+
+  <section class="section section--white mat-section" id="photos" data-type="photo">
+    <div class="container">
+      <header class="section-head"><h2>Photo Gallery</h2><p>Moments from SHAPE events. Click a photo to view it full size.</p></header>
+      {photoAlbums.map((album, ai) => (
+        <div class="album" data-search={album.title.toLowerCase()}>
+          <div class="album__head">
+            <h3>{album.title}</h3>
+            <span>{album.date} · {album.photos.length} photos</span>
+            {album.link && <a class="news-card__more" href={album.link}>Read the story <Lucide name="ArrowRight" size={16} /></a>}
+          </div>
+          <div class="masonry">
+            {album.photos.map((src, i) => (
+              <button class="masonry__item" type="button" data-lightbox={src} data-album={ai} data-index={i} aria-label={`Open photo ${i + 1} of ${album.title}`}>
+                <img src={src} alt="" loading="lazy" />
+                <span class="masonry__zoom"><Lucide name="ZoomIn" size={20} /></span>
+              </button>
+            ))}
+          </div>
+        </div>
+      ))}
+    </div>
+  </section>
+
+  <dialog class="lightbox" data-lb aria-label="Photo viewer">
+    <button class="lightbox__close" type="button" aria-label="Close" data-lb-close>×</button>
+    <button class="lightbox__nav lightbox__nav--prev" type="button" aria-label="Previous photo" data-lb-prev><Lucide name="ChevronLeft" size={26} /></button>
+    <img alt="" data-lb-img />
+    <button class="lightbox__nav lightbox__nav--next" type="button" aria-label="Next photo" data-lb-next><Lucide name="ChevronRight" size={26} /></button>
+    <span class="lightbox__count" data-lb-count></span>
+  </dialog>
+
+  <script>
+    // Filter and search
+    const chips = [...document.querySelectorAll<HTMLButtonElement>('[data-mat-filter] .chip')];
+    const sections = [...document.querySelectorAll<HTMLElement>('.mat-section')];
+    const search = document.querySelector<HTMLInputElement>('[data-mat-search]')!;
+    let type = '';
+    function apply() {
+      const q = search.value.trim().toLowerCase();
+      sections.forEach((s) => {
+        const typeOk = !type || s.dataset.type === type;
+        let shown = 0;
+        s.querySelectorAll<HTMLElement>('[data-search]').forEach((el) => {
+          const ok = !q || el.dataset.search!.includes(q);
+          el.hidden = !ok;
+          if (ok) shown++;
+        });
+        s.hidden = !typeOk || shown === 0;
+      });
+    }
+    chips.forEach((c) => c.addEventListener('click', () => { chips.forEach((x) => x.classList.toggle('is-active', x === c)); type = c.dataset.t ?? ''; apply(); }));
+    search.addEventListener('input', apply);
+
+    // Lightbox
+    const lb = document.querySelector<HTMLDialogElement>('[data-lb]')!;
+    const img = lb.querySelector<HTMLImageElement>('[data-lb-img]')!;
+    const count = lb.querySelector<HTMLElement>('[data-lb-count]')!;
+    let list: string[] = [];
+    let idx = 0;
+    const show = (i: number) => { idx = (i + list.length) % list.length; img.src = list[idx]; count.textContent = `${idx + 1} / ${list.length}`; };
+    document.querySelectorAll<HTMLButtonElement>('[data-lightbox]').forEach((b) =>
+      b.addEventListener('click', () => {
+        list = [...document.querySelectorAll<HTMLButtonElement>(`[data-album="${b.dataset.album}"]`)].map((x) => x.dataset.lightbox!);
+        show(Number(b.dataset.index));
+        lb.showModal();
+      }),
+    );
+    lb.querySelector('[data-lb-close]')!.addEventListener('click', () => lb.close());
+    lb.querySelector('[data-lb-prev]')!.addEventListener('click', () => show(idx - 1));
+    lb.querySelector('[data-lb-next]')!.addEventListener('click', () => show(idx + 1));
+    lb.addEventListener('click', (e) => { if (e.target === lb) lb.close(); });
+    lb.addEventListener('keydown', (e) => { if (e.key === 'ArrowLeft') show(idx - 1); if (e.key === 'ArrowRight') show(idx + 1); });
+  </script>
+</Base>

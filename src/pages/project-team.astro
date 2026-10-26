@@ -1,0 +1,141 @@
+---
+import Base from '../layouts/Base.astro';
+import Lucide from '../components/Lucide.astro';
+import NetworkBg from '../components/NetworkBg.astro';
+import { coordinator, institutions, associatedPartners } from '../data/programme';
+import { workPackages } from '../data/site';
+
+const countries = [...new Set(institutions.map((i) => i.country))];
+const initials = coordinator.name.replace('Prof. ', '').split(' ').map((n) => n[0]).join('');
+---
+
+<Base title="Project Team" description="The people and institutions behind SHAPE — coordination, work package leadership and the nine-university consortium.">
+  <section class="section team-hero">
+    <NetworkBg />
+    <div class="container">
+      <header class="section-head">
+        <span class="eyebrow">The consortium</span>
+        <h1 class="h-xl">Project Team</h1>
+        <p>Nine universities, three associated partners and one shared mission: building the smart city skills East Africa needs.</p>
+      </header>
+
+      <article class="coord">
+        <div class="coord__avatar" aria-hidden="true"><span>{initials}</span></div>
+        <div class="coord__body">
+          <span class="coord__role">{coordinator.role}</span>
+          <h2>{coordinator.name}</h2>
+          <p class="coord__inst"><Lucide name="MapPin" size={16} /> {coordinator.institution}, {coordinator.country}</p>
+          <p>{coordinator.text}</p>
+        </div>
+        <img class="coord__logo" src="/images/moi-university.png" alt="Moi University logo" width="120" height="120" />
+      </article>
+    </div>
+  </section>
+
+  <section class="section section--white">
+    <div class="container">
+      <header class="section-head">
+        <h2>Who Leads What</h2>
+        <p>Every Work Package is led by a partner institution, with all nine universities contributing across the programme.</p>
+      </header>
+      <div class="org">
+        <div class="org__root">
+          <span class="icon-tile"><Lucide name="Crown" size={20} /></span>
+          <div><strong>Coordination</strong><span>Moi University · Kenya</span></div>
+        </div>
+        <ul class="org__branches">
+          {workPackages.map((w) => (
+            <li class="org__node" style={`--wp:${w.color};--wp-tint:${w.tint}`}>
+              <a href="/deliverables/">
+                <span class="org__wp">WP{w.wp}</span>
+                <strong>{w.lead}</strong>
+                <span class="org__title">{w.title}</span>
+              </a>
+            </li>
+          ))}
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <section class="section section--alt">
+    <div class="container">
+      <header class="section-head">
+        <h2>Institution Teams</h2>
+        <p>Hover or tap an institution to see its role. Individual team profiles will be published here soon.</p>
+      </header>
+      <div class="dl__chips team-filter" role="group" aria-label="Filter by country" data-team-filter>
+        <button class="chip is-active" type="button" data-country="">All</button>
+        {countries.map((c) => <button class="chip" type="button" data-country={c}>{c}</button>)}
+      </div>
+      <div class="team-grid">
+        {institutions.map((i) => (
+          <article class="team-card" data-country={i.country} tabindex="0">
+            <div class="team-card__inner">
+              <div class="team-card__front">
+                <img class="partner__flag" src={`https://flagcdn.com/w80/${i.flag}.png`} alt={`${i.country} flag`} width="28" height="20" loading="lazy" />
+                <div class="partner__logo"><img src={i.logo} alt={`${i.name} logo`} loading="lazy" /></div>
+                <strong class="partner__name">{i.name}</strong>
+                <span class="partner__role">{i.role}</span>
+                <div class="team-card__wps">
+                  {i.leads.map((l) => <span class="wp-pill" style={`--wp:${l.color};--wp-tint:${l.tint}`}>Leads WP{l.wp}</span>)}
+                </div>
+                <div class="team-card__ghosts" aria-label="Team profiles coming soon">
+                  <span></span><span></span><span></span><em>Profiles coming soon</em>
+                </div>
+              </div>
+              <div class="team-card__back">
+                <strong>{i.name}</strong>
+                <span class="team-card__meta"><Lucide name="MapPin" size={14} /> {i.country} · {i.region}</span>
+                <p>{i.text}</p>
+                {i.leads.map((l) => <p class="team-card__lead">Leads <b>WP{l.wp}</b> — {l.title}</p>)}
+                <a class="partner__visit" href={i.url} target="_blank" rel="noopener">Visit Website →</a>
+              </div>
+            </div>
+          </article>
+        ))}
+      </div>
+    </div>
+  </section>
+
+  <section class="section section--white">
+    <div class="container">
+      <header class="section-head">
+        <h2>Associated Partners</h2>
+        <p>They contribute local case studies, inform curriculum design and extend SHAPE's reach beyond the consortium countries.</p>
+      </header>
+      <ul class="assoc">
+        {associatedPartners.map((a) => (
+          <li>
+            <span class="icon-tile"><Lucide name={a.icon} size={20} /></span>
+            <div><strong>{a.name}</strong><span><img src={`https://flagcdn.com/w40/${a.flag}.png`} alt="" width="20" height="14" loading="lazy" /> {a.country}</span></div>
+          </li>
+        ))}
+      </ul>
+    </div>
+  </section>
+
+  <section class="team-photo">
+    <img src="/images/news/Shapeteam-1.jpeg" alt="SHAPE consortium members at the partners meeting in Mombasa" loading="lazy" />
+    <div class="team-photo__caption">
+      <span class="eyebrow eyebrow--light">Together in Mombasa</span>
+      <h2>The SHAPE consortium, September 2026</h2>
+      <a class="btn btn--gold" href="/news/shape-consortium-convenes-partners-meeting-in-mombasa-to-set-the-course-for-smart-city-education-in-east-africa/">Read the story <Lucide name="ArrowRight" size={16} /></a>
+    </div>
+  </section>
+
+  <script>
+    const chips = [...document.querySelectorAll<HTMLButtonElement>('[data-team-filter] .chip')];
+    const cards = [...document.querySelectorAll<HTMLElement>('.team-card')];
+    chips.forEach((c) =>
+      c.addEventListener('click', () => {
+        chips.forEach((x) => x.classList.toggle('is-active', x === c));
+        cards.forEach((card) => (card.hidden = !!c.dataset.country && card.dataset.country !== c.dataset.country));
+      }),
+    );
+    cards.forEach((card) => card.addEventListener('click', (e) => {
+      if ((e.target as HTMLElement).closest('a')) return;
+      card.classList.toggle('is-flipped');
+    }));
+  </script>
+</Base>
