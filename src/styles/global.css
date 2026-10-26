@@ -640,8 +640,8 @@ button { font: inherit; }
 .album__head h3 { margin: 0; font-size: 1.2rem; }
 .album__head > span { font-size: 0.85rem; color: var(--muted); flex: 1; }
 .masonry { columns: 4 220px; column-gap: 12px; }
-.masonry__item { position: relative; display: block; width: 100%; margin: 0 0 12px; padding: 0; border: 0; border-radius: 14px; overflow: hidden; cursor: zoom-in; break-inside: avoid; background: #eef2f6; }
-.masonry__item img { width: 100%; transition: transform 0.5s, filter 0.5s; }
+.masonry__item { position: relative; display: block; width: 100%; min-height: 140px; margin: 0 0 12px; padding: 0; border: 0; border-radius: 14px; overflow: hidden; cursor: zoom-in; break-inside: avoid; background: #eef2f6; }
+.masonry__item img { width: 100%; min-height: 140px; object-fit: cover; transition: transform 0.5s, filter 0.5s; }
 .masonry__item:hover img, .masonry__item:focus-visible img { transform: scale(1.06); filter: brightness(0.8); }
 .masonry__zoom { position: absolute; inset: 0; display: grid; place-items: center; color: #fff; opacity: 0; transition: opacity 0.3s; }
 .masonry__item:hover .masonry__zoom, .masonry__item:focus-visible .masonry__zoom { opacity: 1; }
@@ -669,3 +669,23 @@ button { font: inherit; }
 .footer__host a { display: inline-flex; background: #fff; border-radius: 8px; padding: 6px 10px; transition: transform 0.2s; }
 .footer__host a:hover { transform: translateY(-2px); }
 .footer__host img { height: 34px; width: auto; }
+
+/* Form feedback, honeypot, comments, preview bar */
+.hp { position: absolute !important; left: -10000px; width: 1px; height: 1px; overflow: hidden; }
+.form-flash { padding: 0.8rem 1rem; border-radius: 10px; font-size: 0.92rem; margin: 0 0 1rem; }
+.form-flash--ok { background: #e3f3f6; color: #03606f; border: 1px solid #b5dde4; }
+.form-flash--err { background: #ffeee6; color: #a8431c; border: 1px solid #ffc9b3; }
+.comments-list { margin-top: 1.5rem; }
+.comments-list ol { list-style: none; padding: 0; margin: 0; }
+.comments-list li { display: flex; gap: 1rem; padding: 1.25rem 0; border-bottom: 1px solid #e3e9ef; }
+.comments-list__avatar { flex-shrink: 0; width: 44px; height: 44px; border-radius: 50%; display: grid; place-items: center; background: linear-gradient(135deg, #037b90, #2aa6b8); color: #fff; font: 700 1.1rem var(--font-head); }
+.comments-list strong { display: block; color: #333; }
+.comments-list time { font-size: 0.78rem; color: #8394a6; }
+.comments-list p { margin: 0.4rem 0 0; white-space: pre-line; }
+.preview-bar { position: sticky; top: 0; z-index: 60; background: #ff7f50; color: #2b1105; text-align: center; padding: 8px 16px; font-weight: 600; font-size: 0.9rem; }
+.coord__avatar img { width: 100%; height: 100%; object-fit: cover; border-radius: inherit; }
+.team-card__members { display: flex; align-items: center; margin-top: 14px; }
+.team-card__members img, .team-card__members span { width: 32px; height: 32px; border-radius: 50%; border: 2px solid #fff; margin-left: -8px; object-fit: cover; display: grid; place-items: center; background: linear-gradient(135deg, #037b90, #2aa6b8); color: #fff; font: 700 0.7rem var(--font-head); }
+.team-card__members > :first-child { margin-left: 0; }
+.team-card__members em { font-size: 0.75rem; color: #037b90; margin-left: 8px; font-style: normal; font-weight: 600; }
+.team-card__names { list-style: none; padding: 0; margin: 4px 0 0; font-size: 0.8rem; text-align: left; }

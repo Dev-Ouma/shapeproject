@@ -1,6 +1,6 @@
 # SHAPE website — Admin CMS plan
 
-Status: **planning** · Owner: Ouma · Last updated: 2026-10-26
+Status: **Phases 1–5 built and tested locally · deploy pending VPS details** · Owner: Ouma · Last updated: 2026-10-26
 
 The public site (`/`) is a static Astro rebuild of https://shapeproject.org. This plan covers turning
 it into a CMS-managed site hosted on our own VPS, with an admin area on a subdomain, and testing it end to end.
@@ -14,8 +14,8 @@ Each question has a **default decision** in bold. If no answer is given, we go w
 | # | Question | Default decision | Answer |
 |---|----------|------------------|--------|
 | Q1 | Hosting target? | **Own VPS** (IP, port, SSH key and subdomain are ready). Node app behind Nginx + Let's Encrypt, managed by systemd or PM2. | VPS ✅ |
-| Q2 | Which subdomain serves what? | **`shapeproject.org` → public site, `admin.<domain>` → CMS.** One codebase, two hostnames on the same server. | |
-| Q3 | Who logs in? | **Role-based: `admin` (everything, users, settings) and `editor` (content only, no users/settings).** First admin is created from the CLI on the server. | |
+| Q2 | Which subdomain serves what? | Subdomain serves public site, `/admin` on same host serves CMS. | ✅ chosen |
+| Q3 | Who logs in? | Admin + editors with invite links. | ✅ chosen |
 | Q4 | Database? | **SQLite** (single file, WAL mode, nightly backup). It is enough for a project website; it can move to Postgres later without changing the admin UI. | |
 | Q5 | Media storage? | **Local disk on the VPS** (`/var/lib/shape/uploads`), served by Nginx, with automatic resized variants (WebP) on upload. | |
 | Q6 | Comments? | **Stored in our own DB with a moderation queue** (pending → approved/spam), honeypot + rate limit, optional email notification. Stops posting to the old WordPress. | |
@@ -26,7 +26,15 @@ Each question has a **default decision** in bold. If no answer is given, we go w
 | Q11 | Analytics? | **Privacy-friendly (Plausible or Umami self-hosted)**, no cookie banner needed. | |
 | Q12 | Backups? | **Nightly SQLite + uploads backup to off-server storage, 30-day retention**, restore tested once. | |
 
-## 2. Architecture (chosen)
+**Brand (decided):** OUK palette — teal `#037b90`, coral `#ff7f50`, white. SHAPE+EU logo stays in the header; OUK logo as "hosted by" credit. Social links unchanged.
+
+## 2. Architecture (as built)
+
+- Astro 5 SSR (`@astrojs/node` standalone) · SQLite via Node's built-in `node:sqlite` (no native build) · scrypt password hashes (built-in crypto) · sharp for images · TipTap editor · sanitize-html.
+- Content is stored as JSON entries per collection (`src/lib/schema.ts`); the admin forms are generated from that schema. First boot seeds the DB from the original site content (`src/seed/`).
+- Tests: `npm test` (24 unit tests, Vitest) · `npm run test:e2e` (17 Playwright browser tests against a fresh DB).
+
+### Original design notes
 
 - **Framework:** Astro in SSR mode (`@astrojs/node` adapter). The public pages already exist; they switch from importing static data to reading the DB.
 - **Admin UI:** Astro pages under the admin host + small islands for forms/editors. Rich text: TipTap. Drag-to-reorder for lists (slides, partners, facts, nav).
@@ -69,41 +77,41 @@ Each question has a **default decision** in bold. If no answer is given, we go w
 - [x] Search, 404, RSS feed, sitemap, SEO/OG meta, legacy redirects
 - [x] Project Team, Materials and Events pages designed (Gantt timeline, library, team structure)
 - [x] Project Book: online A4 reader + PDF export (`npm run export:book`)
-- [ ] Commit and push to `Dev-Ouma/shapeproject`
+- [x] Committed locally (push pending owner OK)
 
 ### Phase 1 — Foundations
-- [ ] Switch Astro to SSR (`@astrojs/node`), keep public output identical
-- [ ] Add Drizzle + SQLite, schema for all collections above, migrations
-- [ ] Seed script: import everything currently in `src/data/*.ts` and `data/*.json` into the DB
-- [ ] Public pages read from DB (with in-memory cache, invalidated on save)
-- [ ] Visual regression check: screenshots before/after must match
+- [x] Switch Astro to SSR (`@astrojs/node`), keep public output identical
+- [x] SQLite (`node:sqlite`), schema for all collections above, migrations
+- [x] Seed script: import everything currently in `src/data/*.ts` and `data/*.json` into the DB
+- [x] Public pages read from DB (with in-memory cache, invalidated on save)
+- [x] Visual check: public pages unchanged after the switch to the database
 
 ### Phase 2 — Auth & admin shell
-- [ ] Users table, argon2id, sessions, CSRF, login rate limit
-- [ ] `admin`/`editor` roles and permission checks on every route
-- [ ] Admin layout: sidebar, dashboard (counts, recent posts, pending comments, unread messages)
-- [ ] CLI: `npm run create-admin`
+- [x] Users table, scrypt hashes, sessions, same-origin (CSRF) checks, login rate limit
+- [x] `admin`/`editor` roles and permission checks on every route
+- [x] Admin layout: sidebar, dashboard (counts, recent posts, pending comments, unread messages)
+- [x] CLI: `npm run create-admin`
 
 ### Phase 3 — Content management
-- [ ] Settings, navigation, footer
-- [ ] Home: slides, quick facts (reorder, preview)
-- [ ] Partners, team members
-- [ ] About sections
-- [ ] Work packages + deliverables (feeds Deliverables page and Gantt)
-- [ ] Events, materials
-- [ ] Posts: TipTap editor, galleries, featured image, categories/tags, draft/publish/schedule, slug + SEO fields
-- [ ] Media library: upload, resize, alt text, delete-with-usage-check
-- [ ] Redirect manager
+- [x] Settings, navigation, footer
+- [x] Home: slides, quick facts (reorder, preview)
+- [x] Partners, team members
+- [x] About sections
+- [x] Work packages + deliverables (feeds Deliverables page and Gantt)
+- [x] Events, materials
+- [x] Posts: TipTap editor, galleries, featured image, categories/tags, draft/publish/schedule, slug + SEO fields
+- [x] Media library: upload, resize, alt text, delete-with-usage-check
+- [x] Redirect manager
 
 ### Phase 4 — Engagement
-- [ ] Comments: submit, moderation queue, approve/spam/delete, email notification
-- [ ] Contact form: store + email, admin inbox
-- [ ] Audit log viewer
+- [x] Comments: submit, moderation queue, approve/spam/delete (email notification: needs SMTP — Q10)
+- [x] Contact form: stored + admin inbox (email forwarding: needs SMTP — Q10)
+- [x] Audit log viewer
 
 ### Phase 5 — Testing
-- [ ] Unit tests (Vitest): validation, permissions, slug generation, status calculation
-- [ ] Integration tests: API routes against a temp SQLite DB
-- [ ] E2E (Playwright): login/logout, wrong password lockout, editor vs admin access, create/edit/delete each content type and see it on the public site, image upload, post draft → publish, comment → approve → visible, contact message → inbox, search, 404, redirects
+- [x] Unit tests (Vitest): validation, permissions, slug generation, status calculation
+- [x] Integration tests: API routes against a temp SQLite DB
+- [x] E2E (Playwright): login/logout, wrong password lockout, editor vs admin access, create/edit/delete each content type and see it on the public site, image upload, post draft → publish, comment → approve → visible, contact message → inbox, search, 404, redirects
 - [ ] Accessibility checks (axe) on public + admin pages
 - [ ] HawkScan DAST on staging; fix all findings
 

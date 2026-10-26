@@ -1,18 +1,12 @@
 ---
 import Base from '../../layouts/Base.astro';
 import PostArchive from '../../components/PostArchive.astro';
-import { news } from '../../data/news';
+import { loadSite } from '../../lib/content';
 
-export function getStaticPaths() {
-  const tags = new Map<string, string>();
-  news.forEach((p) => p.tags.forEach((t) => tags.set(t.slug, t.name)));
-  return [...tags].map(([slug, name]) => ({
-    params: { slug },
-    props: { name, posts: news.filter((p) => p.tags.some((t) => t.slug === slug)) },
-  }));
-}
-
-const { name, posts } = Astro.props;
+const { posts: all } = loadSite();
+const posts = all.filter((p) => p.tags.some((t) => t.slug === Astro.params.slug));
+if (!posts.length) return new Response(null, { status: 404 });
+const name = posts[0].tags.find((t) => t.slug === Astro.params.slug)!.name;
 ---
 
 <Base title={name}>

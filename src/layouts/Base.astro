@@ -1,8 +1,9 @@
 ---
+import { loadSite } from '../lib/content';
 import '../styles/global.css';
-import { contact, nav, socials, disclaimer } from '../data/site';
 import Icon from '../components/Icon.astro';
 import Lucide from '../components/Lucide.astro';
+const { contact, nav, socials, disclaimer, footerText } = loadSite();
 
 interface Props {
   title: string;
@@ -157,7 +158,7 @@ const searchIndex = [
       <div class="container footer__grid">
         <div class="footer__brand">
           <img class="footer__logo" src="/images/White-SHAPE-final-Logo-1-1024x431.png" alt="SHAPE — Smart City Higher Education Advancement Programme in East Africa" width="1024" height="431" loading="lazy" />
-          <p>Smart City Higher Education Advancement Program in East Africa, funded by the EU through European Education and Culture Executive Agency EACEA</p>
+          <p>{footerText}</p>
         </div>
         <div>
           <h3>Pages</h3>

@@ -1,14 +1,12 @@
 ---
+import { loadSite } from '../lib/content';
 import Base from '../layouts/Base.astro';
 import '../styles/book.css';
 import Lucide from '../components/Lucide.astro';
-import {
-  facts, aboutParagraphs, goal, mission, thematicAreas, targetGroups, impacts, workPackages,
-  partners, contact, socials, disclaimer, PROJECT_MONTHS,
-} from '../data/site';
-import { coordinator, associatedPartners, events } from '../data/programme';
+import { bookPdfUrl } from '../lib/book';
+const { facts, aboutParagraphs, goal, mission, thematicAreas, targetGroups, impacts, workPackages, partners, contact, socials, disclaimer, projectMonths: PROJECT_MONTHS, coordinator, associated: associatedPartners, events } = loadSite();
 
-const PDF = '/downloads/SHAPE-Project-Book.pdf';
+const PDF = bookPdfUrl();
 const toc = [
   { id: 'glance', title: 'SHAPE at a Glance' },
   { id: 'challenge', title: 'The Challenge' },

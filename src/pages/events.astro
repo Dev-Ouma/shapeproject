@@ -1,8 +1,10 @@
 ---
+import { loadSite } from '../lib/content';
 import Base from '../layouts/Base.astro';
 import Lucide from '../components/Lucide.astro';
-import { events } from '../data/programme';
-import { workPackages, CURRENT_PROJECT_MONTH, PROJECT_MONTHS, wpStatus, statusLabel } from '../data/site';
+import { wpStatus as _wpStatus, statusLabel } from '../lib/status';
+const { events, workPackages, currentMonth: CURRENT_PROJECT_MONTH, projectMonths: PROJECT_MONTHS, projectStart } = loadSite();
+const wpStatus = (w: { start: number; end: number }) => _wpStatus(w, CURRENT_PROJECT_MONTH);
 
 const months = Array.from({ length: PROJECT_MONTHS }, (_, i) => i + 1);
 const monthName = (m: number) => new Date(Date.UTC(2025, m - 1, 1)).toLocaleDateString('en-GB', { month: 'short', timeZone: 'UTC' });

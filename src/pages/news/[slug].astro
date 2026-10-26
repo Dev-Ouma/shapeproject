@@ -1,15 +1,21 @@
 ---
 import Base from '../../layouts/Base.astro';
-import { news } from '../../data/news';
+import { loadSite, listEntries, toPost } from '../../lib/content';
+import { approvedComments } from '../../lib/engagement';
+import { formatDate } from '../../lib/format';
 
-export function getStaticPaths() {
-  return news.map((post) => ({ params: { slug: post.slug }, props: { post } }));
-}
-
-const { post } = Astro.props;
+const site = loadSite();
+let post = site.posts.find((p) => p.slug === Astro.params.slug);
+// Logged-in editors can preview drafts and scheduled posts.
+const preview = !post && Astro.locals.user ? listEntries('posts', { includeDrafts: true }).find((e) => e.slug === Astro.params.slug) : undefined;
+if (preview) post = toPost(preview, new Map(site.categories.map((c) => [c.name, c.slug])));
+if (!post) return new Response(null, { status: 404 });
+const comments = approvedComments(post.slug);
+const commentState = Astro.url.searchParams.get('comment');
 ---
 
 <Base title={post.title} description={post.excerpt} image={post.image} type="article" published={post.date} modified={post.modified} readingMinutes={post.readingMinutes}>
+  {preview && <div class="preview-bar">Preview — this post is {preview.status === 'draft' ? 'a draft' : 'scheduled'} and not visible to the public.</div>}
   <article class="site-main single-post">
     <header class="page-header">
       <h1 class="entry-title">{post.title}</h1>
@@ -28,11 +34,33 @@ const { post } = Astro.props;
       )}
     </div>
 
+    {comments.length > 0 && (
+      <section class="comments-list" aria-label="Comments">
+        <h2 class="comment-reply-title">{comments.length} {comments.length === 1 ? 'Reply' : 'Replies'}</h2>
+        <ol>
+          {comments.map((c) => (
+            <li id={`comment-${c.id}`}>
+              <div class="comments-list__avatar" aria-hidden="true">{c.author.slice(0, 1).toUpperCase()}</div>
+              <div>
+                <strong>{c.url ? <a href={c.url} rel="nofollow ugc noopener" target="_blank">{c.author}</a> : c.author}</strong>
+                <time datetime={c.created_at}>{formatDate(new Date(c.created_at.replace(' ', 'T') + 'Z'))}</time>
+                <p>{c.body}</p>
+              </div>
+            </li>
+          ))}
+        </ol>
+      </section>
+    )}
+
     {post.commentsOpen && (
       <section id="comments" class="comments-area">
         <div id="respond" class="comment-respond">
           <h2 id="reply-title" class="comment-reply-title">Leave a Reply</h2>
-          <form action="https://shapeproject.org/wp-comments-post.php" method="post" id="commentform" class="comment-form">
+          {commentState === 'pending' && <p class="form-flash form-flash--ok" role="status">Thank you — your comment is awaiting moderation.</p>}
+          {commentState === 'error' && <p class="form-flash form-flash--err" role="alert">Your comment could not be posted. Please fill in all required fields and try again.</p>}
+          <form action="/api/comments" method="post" id="commentform" class="comment-form">
+            <input type="hidden" name="post" value={post.slug} />
+            <p class="hp" aria-hidden="true"><label>Leave empty<input name="website_hp" tabindex="-1" autocomplete="off" /></label></p>
             <p class="comment-notes">
               <span id="email-notes">Your email address will not be published.</span>
               <span class="required-field-message"> Required fields are marked <span class="required">*</span></span>
@@ -59,8 +87,6 @@ const { post } = Astro.props;
             </p>
             <p class="form-submit">
               <input name="submit" type="submit" id="submit" class="submit" value="Post Comment" />
-              <input type="hidden" name="comment_post_ID" value={post.id} id="comment_post_ID" />
-              <input type="hidden" name="comment_parent" id="comment_parent" value="0" />
             </p>
           </form>
         </div>

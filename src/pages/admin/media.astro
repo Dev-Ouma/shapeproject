@@ -1,0 +1,82 @@
+---
+import Admin from '../../layouts/Admin.astro';
+import { listMedia, updateAlt, deleteMedia, mediaUsage, getMedia } from '../../lib/media';
+import { audit } from '../../lib/auth';
+
+let error = '';
+if (Astro.request.method === 'POST') {
+  const f = await Astro.request.formData();
+  const id = Number(f.get('id'));
+  if (f.get('action') === 'alt') { updateAlt(id, String(f.get('alt') ?? '')); return Astro.redirect(`/admin/media?id=${id}&saved=1`, 303); }
+  if (f.get('action') === 'delete') {
+    const m = getMedia(id);
+    const r = deleteMedia(id);
+    if (r.ok) { audit(Astro.locals.user!.id, 'media.delete', m?.path); return Astro.redirect('/admin/media?deleted=1', 303); }
+    error = r.usedBy ? `This file is still used in ${r.usedBy.length} place(s): ${r.usedBy.map((u) => u.collection).join(', ')}. Remove it there first.` : 'File not found.';
+  }
+}
+const q = Astro.url.searchParams.get('q') ?? '';
+const items = listMedia({ q, limit: 200 });
+const sel = Number(Astro.url.searchParams.get('id'));
+const current = sel ? getMedia(sel) : undefined;
+const usage = current ? mediaUsage(current.path) : [];
+---
+
+<Admin title="Media library" crumbs={[{ label: 'Media library' }]}>
+  <div class="a-head"><div><h1>Media library</h1><p>Images are resized automatically (WebP thumbnails). Max 20 MB per file.</p></div></div>
+  {Astro.url.searchParams.has('deleted') && <p class="a-flash a-flash--ok">File deleted.</p>}
+  {Astro.url.searchParams.has('saved') && <p class="a-flash a-flash--ok">Saved.</p>}
+  {error && <p class="a-flash a-flash--err" role="alert">{error}</p>}
+  <label class="a-drop" data-drop style="display:block;margin-bottom:14px">Drop files here or <u>browse</u> — JPG, PNG, WebP, GIF, PDF, DOCX, PPTX<input type="file" multiple hidden data-files /></label>
+  <p class="a-help" data-upload-status role="status"></p>
+  {current && (
+    <div class="a-card" style="margin-bottom:16px;display:grid;grid-template-columns:220px 1fr;gap:18px">
+      {current.mime.startsWith('image/') ? <img src={current.path} alt={current.alt} style="width:100%;border-radius:8px" /> : <div class="a-file" style="display:grid;place-items:center;background:#eef3f4;border-radius:8px;font-weight:700">{current.mime}</div>}
+      <div>
+        <h3 style="word-break:break-all">{current.original_name}</h3>
+        <p class="a-help">{current.path} · {Math.round(current.size / 1024)} KB{current.width && ` · ${current.width}×${current.height}`} · used in {usage.length} place(s)</p>
+        <div style="display:flex;gap:8px;margin-bottom:10px"><input class="a-input" readonly value={current.path} data-copy-src /><button class="a-btn a-btn--ghost a-btn--sm" type="button" data-copy>Copy path</button></div>
+        <form method="post" class="a-field" style="margin-bottom:10px"><input type="hidden" name="id" value={current.id} /><input type="hidden" name="action" value="alt" /><label for="alt">Alt text (describes the image for screen readers)</label><div style="display:flex;gap:8px"><input id="alt" name="alt" value={current.alt} class="a-input" /><button class="a-btn a-btn--sm">Save</button></div></form>
+        <form method="post"><input type="hidden" name="id" value={current.id} /><button class="a-btn a-btn--danger a-btn--sm" name="action" value="delete" onclick="return confirm('Delete this file?')">Delete file</button></form>
+      </div>
+    </div>
+  )}
+  <form method="get" style="max-width:360px;margin-bottom:12px" class="a-field"><input type="search" name="q" value={q} placeholder="Search files…" /></form>
+  {items.length === 0 ? <div class="a-card a-empty">No uploads yet.</div> : (
+    <div class="a-media-grid">
+      {items.map((m) => {
+        const v = JSON.parse(m.variants);
+        return (
+          <a class="a-media-tile" href={`?id=${m.id}`}>
+            {m.mime.startsWith('image/') ? <img src={v.thumb ?? m.path} alt={m.alt} loading="lazy" /> : <div class="a-file">{m.path.split('.').pop()!.toUpperCase()}</div>}
+            <span>{m.original_name}</span>
+          </a>
+        );
+      })}
+    </div>
+  )}
+</Admin>
+
+<script>
+  import { uploadFile } from '../../scripts/admin-form';
+  const drop = document.querySelector<HTMLElement>('[data-drop]')!;
+  const input = document.querySelector<HTMLInputElement>('[data-files]')!;
+  const status = document.querySelector<HTMLElement>('[data-upload-status]')!;
+  async function run(files: FileList) {
+    const errs: string[] = [];
+    for (const [i, f] of [...files].entries()) {
+      status.textContent = `Uploading ${i + 1} of ${files.length}: ${f.name}…`;
+      const r = await uploadFile(f);
+      if ('error' in r) errs.push(`${f.name}: ${r.error}`);
+    }
+    if (errs.length) status.textContent = errs.join(' · ');
+    else location.reload();
+  }
+  input.addEventListener('change', () => input.files && run(input.files));
+  drop.addEventListener('dragover', (e) => { e.preventDefault(); drop.classList.add('is-over'); });
+  drop.addEventListener('dragleave', () => drop.classList.remove('is-over'));
+  drop.addEventListener('drop', (e) => { e.preventDefault(); drop.classList.remove('is-over'); if (e.dataTransfer?.files.length) run(e.dataTransfer.files); });
+  document.querySelector('[data-copy]')?.addEventListener('click', async () => {
+    await navigator.clipboard.writeText(document.querySelector<HTMLInputElement>('[data-copy-src]')!.value);
+  });
+</script>

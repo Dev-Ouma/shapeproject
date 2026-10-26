@@ -8,7 +8,7 @@ interface Props {
 }
 
 const { name, size = 22, class: className } = Astro.props;
-const svg = (icons[name] as string)
+const svg = ((icons[name] as string | undefined) ?? (icons.Circle as string))
   .replace(/width="24"/, `width="${size}"`)
   .replace(/height="24"/, `height="${size}" aria-hidden="true"`)
   .replace(/class="([^"]*)"/, `class="$1${className ? ' ' + className : ''}"`);

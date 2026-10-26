@@ -1,0 +1,36 @@
+---
+import Admin from '../../layouts/Admin.astro';
+import Lucide from '../../components/Lucide.astro';
+import { regenerateBook, bookPdfInfo, bookPdfUrl } from '../../lib/book';
+import { audit } from '../../lib/auth';
+
+let result: { ok: boolean; log: string } | undefined;
+if (Astro.request.method === 'POST') {
+  const port = process.env.PORT ?? '4321';
+  const base = process.env.BOOK_BASE_URL ?? (import.meta.env.DEV ? Astro.url.origin : `http://127.0.0.1:${port}`);
+  result = await regenerateBook(base);
+  audit(Astro.locals.user!.id, `book.regenerate.${result.ok ? 'ok' : 'failed'}`);
+}
+const info = bookPdfInfo();
+---
+
+<Admin title="Project Book PDF" crumbs={[{ label: 'Project Book PDF' }]}>
+  <div class="a-head"><div><h1>Project Book PDF</h1><p>The Project Book page is built from the live content. Regenerate the PDF after editing content so the download matches.</p></div></div>
+  {result && (result.ok ? <p class="a-flash a-flash--ok" role="status">PDF regenerated.</p> : <div class="a-flash a-flash--err" role="alert">PDF generation failed. <pre style="white-space:pre-wrap;font-size:0.75rem">{result.log}</pre></div>)}
+  <div class="a-card a-form" style="max-width:640px">
+    <p style="margin:0">{info ? <Fragment>Last generated <strong>{info.updated.toUTCString()}</strong> · {(info.size / 1e6).toFixed(1)} MB</Fragment> : 'Using the PDF shipped with the site build.'}</p>
+    <div style="display:flex;gap:8px;flex-wrap:wrap">
+      <form method="post" data-busy><button class="a-btn a-btn--coral" type="submit"><Lucide name="RefreshCw" size={16} /> Regenerate PDF</button></form>
+      <a class="a-btn a-btn--ghost" href={bookPdfUrl()} target="_blank" rel="noopener"><Lucide name="Download" size={16} /> Open current PDF</a>
+      <a class="a-btn a-btn--ghost" href="/project-book/" target="_blank" rel="noopener"><Lucide name="BookOpen" size={16} /> Open online book</a>
+    </div>
+    <p class="a-help" style="margin:0">Takes about 20–40 seconds. Requires Chrome/Chromium on the server (set <code>CHROME_PATH</code>).</p>
+  </div>
+</Admin>
+<script>
+  document.querySelector('form[data-busy]')?.addEventListener('submit', (e) => {
+    const b = (e.currentTarget as HTMLFormElement).querySelector('button')!;
+    b.disabled = true;
+    b.textContent = 'Generating… please wait';
+  });
+</script>

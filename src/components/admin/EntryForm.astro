@@ -1,0 +1,63 @@
+---
+import FieldInput from './FieldInput.astro';
+import Lucide from '../Lucide.astro';
+import type { Collection } from '../../lib/schema';
+import type { Entry } from '../../lib/content';
+import { resolveOptions, postState, publicUrl } from '../../lib/admin';
+
+interface Props {
+  collection: Collection;
+  entry?: Entry;
+  values: Record<string, any>;
+  errors: Record<string, string>;
+  slug?: string;
+}
+const { collection: c, entry, values, errors, slug } = Astro.props;
+const options = resolveOptions(c);
+const state = entry && c.drafts ? postState(entry) : undefined;
+const viewUrl = entry ? publicUrl(c, entry.slug) : undefined;
+---
+
+<form method="post" class="a-edit" data-entry-form novalidate>
+  <div class="a-card a-form">
+    {c.description && <p class="a-help" style="margin:0">{c.description}</p>}
+    {c.fields.map((f) => <FieldInput field={f} value={values[f.name]} name={`data[${f.name}]`} errorKey={f.name} errors={errors} options={options} />)}
+  </div>
+  <aside class="a-edit__side">
+    <div class="a-card a-form">
+      {c.drafts && (
+        <p style="margin:0">Status: <span class={`a-pill a-pill--${state ?? 'draft'}`}>{state ?? 'new'}</span></p>
+      )}
+      {c.slugFrom && (
+        <div class:list={['a-field', { 'has-error': !!errors.slug }]}>
+          <label for="slug">URL slug</label>
+          <input id="slug" type="text" name="slug" value={slug ?? entry?.slug ?? ''} placeholder="generated from title" pattern="[a-z0-9-]*" />
+          <span class="a-help">Lowercase letters, numbers and dashes.</span>
+          {errors.slug && <span class="a-error">{errors.slug}</span>}
+        </div>
+      )}
+      {c.drafts ? (
+        <Fragment>
+          <button class="a-btn a-btn--coral" type="submit" name="_action" value="publish"><Lucide name="Send" size={16} /> {state === 'published' ? 'Update' : 'Publish'}</button>
+          <button class="a-btn a-btn--ghost" type="submit" name="_action" value="draft"><Lucide name="Save" size={16} /> {state === 'published' ? 'Unpublish (draft)' : 'Save draft'}</button>
+        </Fragment>
+      ) : (
+        <button class="a-btn a-btn--coral" type="submit" name="_action" value="save"><Lucide name="Save" size={16} /> Save</button>
+      )}
+      {viewUrl && <a class="a-btn a-btn--ghost" href={viewUrl} target="_blank" rel="noopener"><Lucide name="Eye" size={16} /> {state && state !== 'published' ? 'Preview' : 'View on site'}</a>}
+      {entry && <p class="a-help" style="margin:0">Last saved {entry.updated_at} UTC</p>}
+    </div>
+    {entry && c.kind === 'list' && (
+      <div class="a-card">
+        <button class="a-btn a-btn--danger" type="submit" name="_action" value="delete" formnovalidate data-confirm="Delete this item permanently?"><Lucide name="Trash2" size={16} /> Delete</button>
+      </div>
+    )}
+  </aside>
+</form>
+
+<script>
+  import '../../scripts/admin-form';
+  document.querySelectorAll<HTMLButtonElement>('[data-confirm]').forEach((b) =>
+    b.addEventListener('click', (e) => { if (!confirm(b.dataset.confirm!)) e.preventDefault(); }),
+  );
+</script>

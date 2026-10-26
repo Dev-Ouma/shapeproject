@@ -1,0 +1,64 @@
+---
+import Admin from '../../layouts/Admin.astro';
+import Lucide from '../../components/Lucide.astro';
+import { listEntries, entryTitle } from '../../lib/content';
+import { getCollection } from '../../lib/schema';
+import { listComments, listMessages, countPendingComments, countUnreadMessages } from '../../lib/engagement';
+import { recentAudit, can } from '../../lib/auth';
+import { listMedia } from '../../lib/media';
+import { postState } from '../../lib/admin';
+
+const posts = listEntries('posts', { includeDrafts: true });
+const drafts = posts.filter((p) => postState(p) !== 'published').length;
+const pending = countPendingComments();
+const unread = countUnreadMessages();
+const recentPosts = posts.slice(0, 5);
+const pendingComments = listComments('pending').slice(0, 5);
+const messages = listMessages().slice(0, 5);
+const activity = can(Astro.locals.user, 'admin') ? recentAudit(8) : [];
+const postsC = getCollection('posts')!;
+const quick = [
+  { href: '/admin/content/posts/new', icon: 'PenLine', label: 'Write a news post' },
+  { href: '/admin/content/events/new', icon: 'CalendarPlus', label: 'Add an event' },
+  { href: '/admin/content/team/new', icon: 'UserPlus', label: 'Add a team member' },
+  { href: '/admin/content/workpackages', icon: 'FileUp', label: 'Publish a deliverable' },
+  { href: '/admin/media', icon: 'Upload', label: 'Upload media' },
+];
+---
+
+<Admin title="Dashboard">
+  <div class="a-head"><div><h1>Welcome back, {Astro.locals.user!.name.split(' ')[0]}</h1><p>Everything on shapeproject.org is managed from here. Saves go live immediately.</p></div></div>
+  <div class="a-stats">
+    <a class="a-stat" href="/admin/content/posts"><strong>{posts.length}</strong><span>News posts{drafts ? ` · ${drafts} not live` : ''}</span></a>
+    <a class:list={['a-stat', { 'a-stat--alert': pending }]} href="/admin/comments"><strong>{pending}</strong><span>Comments awaiting review</span></a>
+    <a class:list={['a-stat', { 'a-stat--alert': unread }]} href="/admin/messages"><strong>{unread}</strong><span>Unread messages</span></a>
+    <a class="a-stat" href="/admin/content/events"><strong>{listEntries('events').length}</strong><span>Events</span></a>
+    <a class="a-stat" href="/admin/media"><strong>{listMedia({ limit: 1000 }).length}</strong><span>Uploaded files</span></a>
+  </div>
+  <div class="a-card" style="margin-bottom:18px">
+    <h3>Quick actions</h3>
+    <div style="display:flex;flex-wrap:wrap;gap:8px">
+      {quick.map((q) => <a class="a-btn a-btn--ghost" href={q.href}><Lucide name={q.icon as any} size={16} /> {q.label}</a>)}
+    </div>
+  </div>
+  <div class="a-grid2">
+    <div class="a-card">
+      <h3>Latest posts</h3>
+      <ul class="a-list">{recentPosts.map((p) => <li><a href={`/admin/content/posts/${p.id}`}>{entryTitle(postsC, p)}</a><span class={`a-pill a-pill--${postState(p)}`}>{postState(p)}</span></li>)}</ul>
+    </div>
+    <div class="a-card">
+      <h3>Comments awaiting review</h3>
+      {pendingComments.length ? <ul class="a-list">{pendingComments.map((c) => <li><span><strong>{c.author}</strong> on <em>{c.post_slug}</em><br /><small>{c.body.slice(0, 90)}</small></span><a href="/admin/comments">Review</a></li>)}</ul> : <p class="a-help">Nothing to review.</p>}
+    </div>
+    <div class="a-card">
+      <h3>Recent messages</h3>
+      {messages.length ? <ul class="a-list">{messages.map((m) => <li><a href={`/admin/messages?id=${m.id}`}>{m.read ? m.subject : <strong>{m.subject}</strong>}</a><small>{m.name}</small></li>)}</ul> : <p class="a-help">No messages yet.</p>}
+    </div>
+    {activity.length > 0 && (
+      <div class="a-card">
+        <h3>Recent activity</h3>
+        <ul class="a-list">{activity.map((a) => <li><span><strong>{a.user_name ?? 'System'}</strong> {a.action}{a.target && <Fragment> — <em>{a.target}</em></Fragment>}</span><small>{a.at}</small></li>)}</ul>
+      </div>
+    )}
+  </div>
+</Admin>

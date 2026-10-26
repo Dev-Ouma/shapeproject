@@ -1,0 +1,89 @@
+---
+import Admin from '../../layouts/Admin.astro';
+import { listUsers, createInvite, updateUser, listPendingInvites, countActiveAdmins, getUser, audit, findUserByEmail, type Role } from '../../lib/auth';
+
+let error = '';
+let inviteLink = '';
+const me = Astro.locals.user!;
+if (Astro.request.method === 'POST') {
+  const f = await Astro.request.formData();
+  const action = String(f.get('action'));
+  if (action === 'invite') {
+    const email = String(f.get('email') ?? '').trim();
+    const name = String(f.get('name') ?? '').trim();
+    const role = (f.get('role') === 'admin' ? 'admin' : 'editor') as Role;
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || !name) error = 'Enter a name and a valid email.';
+    else if (findUserByEmail(email)) error = 'A user with that email already exists.';
+    else {
+      const token = createInvite(email, name, role, me.id);
+      inviteLink = `${Astro.url.origin}/admin/invite/${token}`;
+      audit(me.id, 'user.invite', `${email} (${role})`);
+    }
+  } else {
+    const id = Number(f.get('id'));
+    const target = getUser(id);
+    if (!target) error = 'User not found.';
+    else if (id === me.id) error = 'You cannot change your own role or access here.';
+    else if ((action === 'disable' || action === 'editor') && target.role === 'admin' && countActiveAdmins() <= 1) error = 'At least one active admin is required.';
+    else {
+      if (action === 'disable') updateUser(id, { disabled: true });
+      if (action === 'enable') updateUser(id, { disabled: false });
+      if (action === 'admin' || action === 'editor') updateUser(id, { role: action });
+      audit(me.id, `user.${action}`, target.email);
+      return Astro.redirect('/admin/users?saved=1', 303);
+    }
+  }
+}
+const users = listUsers();
+const invites = listPendingInvites();
+---
+
+<Admin title="Users" crumbs={[{ label: 'Users' }]}>
+  <div class="a-head"><div><h1>Users</h1><p>Admins manage everything. Editors manage content but not users, settings, navigation or redirects.</p></div></div>
+  {Astro.url.searchParams.has('saved') && <p class="a-flash a-flash--ok">Saved.</p>}
+  {error && <p class="a-flash a-flash--err" role="alert">{error}</p>}
+  {inviteLink && (
+    <div class="a-flash a-flash--ok" role="status">
+      Invitation created. Send this link to the person (valid for 7 days, single use):
+      <div style="display:flex;gap:8px;margin-top:8px"><input class="a-input" readonly value={inviteLink} data-invite /><button type="button" class="a-btn a-btn--sm" data-copy-invite>Copy</button></div>
+    </div>
+  )}
+  <div class="a-card" style="margin-bottom:18px">
+    <h3>Invite someone</h3>
+    <form method="post" style="display:grid;grid-template-columns:1fr 1fr 160px auto;gap:10px;align-items:end" class="a-form">
+      <input type="hidden" name="action" value="invite" />
+      <div class="a-field"><label for="iname">Name</label><input id="iname" name="name" required /></div>
+      <div class="a-field"><label for="iemail">Email</label><input id="iemail" type="email" name="email" required /></div>
+      <div class="a-field"><label for="irole">Role</label><select id="irole" name="role"><option value="editor">Editor</option><option value="admin">Admin</option></select></div>
+      <button class="a-btn a-btn--coral" type="submit">Create invite</button>
+    </form>
+  </div>
+  <table class="a-table">
+    <thead><tr><th>Name</th><th>Role</th><th>Status</th><th>Last login</th><th></th></tr></thead>
+    <tbody>
+      {users.map((u) => (
+        <tr>
+          <td><strong>{u.name}</strong>{u.id === me.id && <span class="a-help"> (you)</span>}<div class="a-help">{u.email}</div></td>
+          <td><span class="a-role">{u.role}</span></td>
+          <td>{u.disabled ? <span class="a-pill a-pill--spam">disabled</span> : <span class="a-pill a-pill--published">active</span>}</td>
+          <td class="a-help">{u.last_login ?? 'never'}</td>
+          <td>
+            {u.id !== me.id && (
+              <form method="post" style="display:flex;gap:4px;justify-content:flex-end">
+                <input type="hidden" name="id" value={u.id} />
+                {u.role === 'editor' ? <button class="a-btn a-btn--ghost a-btn--sm" name="action" value="admin">Make admin</button> : <button class="a-btn a-btn--ghost a-btn--sm" name="action" value="editor">Make editor</button>}
+                {u.disabled ? <button class="a-btn a-btn--sm" name="action" value="enable">Enable</button> : <button class="a-btn a-btn--danger a-btn--sm" name="action" value="disable">Disable</button>}
+              </form>
+            )}
+          </td>
+        </tr>
+      ))}
+    </tbody>
+  </table>
+  {invites.length > 0 && (
+    <div class="a-card" style="margin-top:18px"><h3>Pending invitations</h3><ul class="a-list">{invites.map((i) => <li><span>{i.name} — {i.email} <span class="a-role">{i.role}</span></span><small>expires {new Date(i.expires_at).toLocaleDateString('en-GB')}</small></li>)}</ul></div>
+  )}
+</Admin>
+<script>
+  document.querySelector('[data-copy-invite]')?.addEventListener('click', () => navigator.clipboard.writeText(document.querySelector<HTMLInputElement>('[data-invite]')!.value));
+</script>

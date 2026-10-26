@@ -1,12 +1,13 @@
 ---
+import { loadSite } from '../lib/content';
 import Base from '../layouts/Base.astro';
 import Lucide from '../components/Lucide.astro';
 import NetworkBg from '../components/NetworkBg.astro';
-import { coordinator, institutions, associatedPartners } from '../data/programme';
-import { workPackages } from '../data/site';
+const { coordinator, institutions, associated: associatedPartners, workPackages } = loadSite();
 
 const countries = [...new Set(institutions.map((i) => i.country))];
-const initials = coordinator.name.replace('Prof. ', '').split(' ').map((n) => n[0]).join('');
+const initialsOf = (name: string) => name.replace(/^(Prof|Dr|Mr|Ms|Mrs)\.?\s+/, '').split(' ').map((n) => n[0]).join('').slice(0, 2);
+const initials = coordinator ? initialsOf(coordinator.name) : '';
 ---
 
 <Base title="Project Team" description="The people and institutions behind SHAPE — coordination, work package leadership and the nine-university consortium.">
@@ -19,16 +20,16 @@ const initials = coordinator.name.replace('Prof. ', '').split(' ').map((n) => n[
         <p>Nine universities, three associated partners and one shared mission: building the smart city skills East Africa needs.</p>
       </header>
 
-      <article class="coord">
-        <div class="coord__avatar" aria-hidden="true"><span>{initials}</span></div>
+      {coordinator && <article class="coord">
+        <div class="coord__avatar" aria-hidden="true">{coordinator.photo ? <img src={coordinator.photo} alt="" /> : <span>{initials}</span>}</div>
         <div class="coord__body">
           <span class="coord__role">{coordinator.role}</span>
           <h2>{coordinator.name}</h2>
           <p class="coord__inst"><Lucide name="MapPin" size={16} /> {coordinator.institution}, {coordinator.country}</p>
           <p>{coordinator.text}</p>
         </div>
-        <img class="coord__logo" src="/images/moi-university.png" alt="Moi University logo" width="120" height="120" />
-      </article>
+        {coordinator.logo && <img class="coord__logo" src={coordinator.logo} alt={`${coordinator.institution} logo`} width="120" height="120" />}
+      </article>}
     </div>
   </section>
 
@@ -80,15 +81,23 @@ const initials = coordinator.name.replace('Prof. ', '').split(' ').map((n) => n[
                 <div class="team-card__wps">
                   {i.leads.map((l) => <span class="wp-pill" style={`--wp:${l.color};--wp-tint:${l.tint}`}>Leads WP{l.wp}</span>)}
                 </div>
-                <div class="team-card__ghosts" aria-label="Team profiles coming soon">
-                  <span></span><span></span><span></span><em>Profiles coming soon</em>
-                </div>
+                {i.members.length ? (
+                  <div class="team-card__members" aria-label={`${i.members.length} team member${i.members.length > 1 ? 's' : ''}`}>
+                    {i.members.slice(0, 4).map((m: any) => m.photo ? <img src={m.photo} alt="" title={m.name} /> : <span title={m.name}>{initialsOf(m.name)}</span>)}
+                    <em>{i.members.length} team member{i.members.length > 1 ? 's' : ''}</em>
+                  </div>
+                ) : (
+                  <div class="team-card__ghosts" aria-label="Team profiles coming soon">
+                    <span></span><span></span><span></span><em>Profiles coming soon</em>
+                  </div>
+                )}
               </div>
               <div class="team-card__back">
                 <strong>{i.name}</strong>
                 <span class="team-card__meta"><Lucide name="MapPin" size={14} /> {i.country} · {i.region}</span>
                 <p>{i.text}</p>
                 {i.leads.map((l) => <p class="team-card__lead">Leads <b>WP{l.wp}</b> — {l.title}</p>)}
+                {i.members.length > 0 && <ul class="team-card__names">{i.members.map((m: any) => <li><b>{m.name}</b> · {m.title}</li>)}</ul>}
                 <a class="partner__visit" href={i.url} target="_blank" rel="noopener">Visit Website →</a>
               </div>
             </div>

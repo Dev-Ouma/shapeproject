@@ -1,0 +1,25 @@
+---
+import Admin from '../../../../layouts/Admin.astro';
+import EntryForm from '../../../../components/admin/EntryForm.astro';
+import { getCollection } from '../../../../lib/schema';
+import { getEntry, entryTitle } from '../../../../lib/content';
+import { handleEntryPost, type FormState } from '../../../../lib/save-handler';
+
+const c = getCollection(Astro.params.collection ?? '');
+const entry = getEntry(Number(Astro.params.id));
+if (!c || !entry || entry.collection !== c.key) return new Response('Not found', { status: 404 });
+let state: FormState | undefined;
+if (Astro.request.method === 'POST') {
+  const r = await handleEntryPost(Astro, c, entry);
+  if (r instanceof Response) return r;
+  state = r;
+}
+const title = entryTitle(c, entry);
+---
+
+<Admin title={title} crumbs={[{ label: c.label, href: `/admin/content/${c.key}` }, { label: title }]}>
+  <div class="a-head"><h1>{title}</h1></div>
+  {Astro.url.searchParams.has('saved') && <p class="a-flash a-flash--ok" role="status">Saved. Changes are live on the site.</p>}
+  {state && <p class="a-flash a-flash--err" role="alert">Please fix the highlighted fields.</p>}
+  <EntryForm collection={c} entry={entry} values={state?.values ?? entry.data} errors={state?.errors ?? {}} slug={state?.slug} />
+</Admin>

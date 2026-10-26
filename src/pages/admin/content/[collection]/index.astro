@@ -1,0 +1,96 @@
+---
+import Admin from '../../../../layouts/Admin.astro';
+import EntryForm from '../../../../components/admin/EntryForm.astro';
+import Lucide from '../../../../components/Lucide.astro';
+import { getCollection } from '../../../../lib/schema';
+import { listEntries, getSingleton, entryTitle } from '../../../../lib/content';
+import { handleEntryPost, type FormState } from '../../../../lib/save-handler';
+import { postState, publicUrl } from '../../../../lib/admin';
+
+const c = getCollection(Astro.params.collection ?? '');
+if (!c) return new Response('Not found', { status: 404 });
+
+let state: FormState | undefined;
+const single = c.kind === 'singleton' ? getSingleton(c.key) : undefined;
+if (c.kind === 'singleton' && Astro.request.method === 'POST') {
+  const r = await handleEntryPost(Astro, c, single);
+  if (r instanceof Response) return r;
+  state = r;
+}
+const entries = c.kind === 'list' ? listEntries(c.key, { includeDrafts: true }) : [];
+const saved = Astro.url.searchParams.has('saved');
+const deleted = Astro.url.searchParams.has('deleted');
+const q = (Astro.url.searchParams.get('q') ?? '').toLowerCase();
+const shown = q ? entries.filter((e) => entryTitle(c, e).toLowerCase().includes(q)) : entries;
+const view = publicUrl(c, null);
+---
+
+<Admin title={c.label} crumbs={[{ label: c.label }]}>
+  <div class="a-head">
+    <div>
+      <h1>{c.label}</h1>
+      {c.kind === 'list' && <p>{entries.length} {entries.length === 1 ? c.singular.toLowerCase() : 'items'}{c.sortable ? ' · drag rows to reorder' : ''}</p>}
+    </div>
+    <div style="display:flex;gap:8px">
+      {view && <a class="a-btn a-btn--ghost" href={view} target="_blank" rel="noopener"><Lucide name="Eye" size={16} /> View on site</a>}
+      {c.kind === 'list' && <a class="a-btn a-btn--coral" href={`/admin/content/${c.key}/new`}><Lucide name="Plus" size={16} /> New {c.singular.toLowerCase()}</a>}
+    </div>
+  </div>
+  {saved && <p class="a-flash a-flash--ok" role="status">Saved. Changes are live on the site.</p>}
+  {deleted && <p class="a-flash a-flash--ok" role="status">Deleted.</p>}
+  {state && <p class="a-flash a-flash--err" role="alert">Please fix the highlighted fields.</p>}
+
+  {c.kind === 'singleton' ? (
+    <EntryForm collection={c} entry={single} values={state?.values ?? single?.data ?? {}} errors={state?.errors ?? {}} />
+  ) : (
+    <Fragment>
+      {entries.length > 8 && (
+        <form method="get" style="margin-bottom:12px;max-width:360px" class="a-field"><input type="search" name="q" value={q} placeholder={`Search ${c.label.toLowerCase()}…`} /></form>
+      )}
+      {shown.length === 0 ? (
+        <div class="a-card a-empty">No {c.label.toLowerCase()} yet. <a href={`/admin/content/${c.key}/new`}>Create the first one</a>.</div>
+      ) : (
+        <table class="a-table" data-sortable={c.sortable && !q ? c.key : undefined}>
+          <thead><tr>{c.sortable && !q && <th aria-label="Order"></th>}<th>Title</th>{c.drafts && <th>Status</th>}{c.key === 'posts' && <th>Date</th>}<th>Updated</th><th></th></tr></thead>
+          <tbody>
+            {shown.map((e) => (
+              <tr data-id={e.id} draggable={c.sortable && !q ? 'true' : undefined}>
+                {c.sortable && !q && <td class="a-drag" title="Drag to reorder"><Lucide name="GripVertical" size={16} /></td>}
+                <td><a href={`/admin/content/${c.key}/${e.id}`}><strong>{entryTitle(c, e)}</strong></a>{e.slug && <div class="a-help">/{e.slug}</div>}</td>
+                {c.drafts && <td><span class={`a-pill a-pill--${postState(e)}`}>{postState(e)}</span></td>}
+                {c.key === 'posts' && <td>{new Date(e.data.date).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}</td>}
+                <td class="a-help">{e.updated_at}</td>
+                <td style="text-align:right"><a class="a-btn a-btn--ghost a-btn--sm" href={`/admin/content/${c.key}/${e.id}`}>Edit</a></td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
+      <p class="a-help" data-order-status role="status"></p>
+    </Fragment>
+  )}
+</Admin>
+
+<script>
+  const table = document.querySelector<HTMLTableElement>('table[data-sortable]');
+  if (table) {
+    const body = table.tBodies[0];
+    const status = document.querySelector<HTMLElement>('[data-order-status]')!;
+    let dragged: HTMLTableRowElement | null = null;
+    body.addEventListener('dragstart', (e) => { dragged = (e.target as HTMLElement).closest('tr'); dragged?.classList.add('is-dragging'); });
+    body.addEventListener('dragend', () => { dragged?.classList.remove('is-dragging'); dragged = null; save(); });
+    body.addEventListener('dragover', (e) => {
+      e.preventDefault();
+      const over = (e.target as HTMLElement).closest('tr');
+      if (!dragged || !over || over === dragged) return;
+      const r = over.getBoundingClientRect();
+      e.clientY > r.top + r.height / 2 ? over.after(dragged) : over.before(dragged);
+    });
+    async function save() {
+      const ids = [...body.rows].map((r) => Number(r.dataset.id));
+      status.textContent = 'Saving order…';
+      const res = await fetch(`/admin/api/reorder`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ collection: table!.dataset.sortable, ids }) });
+      status.textContent = res.ok ? 'Order saved — live on the site.' : 'Could not save the order.';
+    }
+  }
+</script>

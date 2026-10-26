@@ -1,7 +1,8 @@
 import type { APIRoute } from 'astro';
-import { news, categories } from '../data/news';
+import { loadSite } from '../lib/content';
 
 export const GET: APIRoute = ({ site }) => {
+  const { posts: news, categories } = loadSite();
   const base = site ?? new URL('https://shapeproject.org');
   const tagSlugs = [...new Set(news.flatMap((p) => p.tags.map((t) => t.slug)))];
   const paths = [

@@ -1,0 +1,28 @@
+---
+import '../../styles/admin.css';
+interface Props { title: string }
+const { title } = Astro.props;
+---
+
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="robots" content="noindex, nofollow" />
+    <title>{title} · SHAPE CMS</title>
+    <link rel="icon" href="/images/cropped-SHAPE-final-Logo-32x32.jpeg" />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Poppins:wght@600;700&display=swap" rel="stylesheet" />
+  </head>
+  <body class="admin">
+    <main class="a-auth">
+      <div class="a-auth__card">
+        <div class="a-auth__logos">
+          <img src="/images/Shape-and-EU-scaled.png" alt="SHAPE — co-funded by the EU" />
+        </div>
+        <slot />
+        <p class="a-help" style="text-align:center;margin-top:18px">Hosted by <img src="/images/ouk-logo.png" alt="Open University of Kenya" style="height:22px;vertical-align:middle" /></p>
+      </div>
+    </main>
+  </body>
+</html>

@@ -1,0 +1,22 @@
+---
+import Admin from '../../../../layouts/Admin.astro';
+import EntryForm from '../../../../components/admin/EntryForm.astro';
+import { getCollection } from '../../../../lib/schema';
+import { handleEntryPost, type FormState } from '../../../../lib/save-handler';
+
+const c = getCollection(Astro.params.collection ?? '');
+if (!c || c.kind !== 'list') return new Response('Not found', { status: 404 });
+let state: FormState | undefined;
+if (Astro.request.method === 'POST') {
+  const r = await handleEntryPost(Astro, c);
+  if (r instanceof Response) return r;
+  state = r;
+}
+const defaults: Record<string, any> = c.key === 'posts' ? { date: new Date().toISOString(), commentsOpen: true, categories: ['News'] } : {};
+---
+
+<Admin title={`New ${c.singular.toLowerCase()}`} crumbs={[{ label: c.label, href: `/admin/content/${c.key}` }, { label: 'New' }]}>
+  <div class="a-head"><h1>New {c.singular.toLowerCase()}</h1></div>
+  {state && <p class="a-flash a-flash--err" role="alert">Please fix the highlighted fields.</p>}
+  <EntryForm collection={c} values={state?.values ?? defaults} errors={state?.errors ?? {}} slug={state?.slug} />
+</Admin>

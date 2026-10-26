@@ -6,13 +6,27 @@
     "dev": "astro dev",
     "build": "astro build",
     "preview": "astro preview",
-    "export:book": "node scripts/export-book.mjs"
+    "export:book": "node scripts/export-book.mjs",
+    "start": "node ./dist/server/entry.mjs",
+    "test": "vitest run",
+    "test:e2e": "playwright test",
+    "create-admin": "node scripts/create-admin.mjs"
   },
   "dependencies": {
+    "@astrojs/node": "^9.5.5",
+    "@tiptap/core": "^3.32.0",
+    "@tiptap/extension-image": "^3.32.0",
+    "@tiptap/extension-link": "^3.32.0",
+    "@tiptap/starter-kit": "^3.32.0",
     "astro": "^5.13.0",
-    "lucide-static": "^1.61.0"
+    "lucide-static": "^1.61.0",
+    "sanitize-html": "^2.18.1",
+    "sharp": "^0.35.5"
   },
   "devDependencies": {
-    "playwright-core": "^1.56.1"
+    "@playwright/test": "^1.56.1",
+    "@types/sanitize-html": "^2.16.2",
+    "playwright-core": "^1.56.1",
+    "vitest": "^5.0.5"
   }
 }

@@ -1,8 +1,9 @@
 ---
+import { loadSite } from '../lib/content';
 import Base from '../layouts/Base.astro';
 import Lucide from '../components/Lucide.astro';
 import NetworkBg from '../components/NetworkBg.astro';
-import { aboutParagraphs, goal, mission, thematicAreas, targetGroups, impacts } from '../data/site';
+const { aboutParagraphs, goal, mission, thematicAreas, targetGroups, impacts } = loadSite();
 ---
 
 <Base title="About">

@@ -1,0 +1,46 @@
+---
+import AuthShell from '../../../components/admin/AuthShell.astro';
+import { getInvite, acceptInvite, passwordProblem, login, SESSION_COOKIE, sessionMaxAge, audit } from '../../../lib/auth';
+
+const token = Astro.params.token ?? '';
+const invite = getInvite(token);
+let error = '';
+if (invite && Astro.request.method === 'POST') {
+  const form = await Astro.request.formData();
+  const pw = String(form.get('password') ?? '');
+  const confirm = String(form.get('confirm') ?? '');
+  error = passwordProblem(pw) ?? (pw !== confirm ? 'Passwords do not match.' : '');
+  if (!error) {
+    const user = acceptInvite(token, pw);
+    if (!user) error = 'This invite can no longer be used.';
+    else {
+      audit(user.id, 'invite.accepted', user.email);
+      const r = login(user.email, pw, { ip: Astro.clientAddress, userAgent: Astro.request.headers.get('user-agent') ?? '' });
+      if (r.ok) Astro.cookies.set(SESSION_COOKIE, r.token, { path: '/', httpOnly: true, sameSite: 'lax', secure: Astro.url.protocol === 'https:', maxAge: sessionMaxAge });
+      return Astro.redirect('/admin', 303);
+    }
+  }
+}
+if (!invite) Astro.response.status = 404;
+---
+
+<AuthShell title="Accept invitation">
+  {invite ? (
+    <Fragment>
+      <h1>Welcome, {invite.name}</h1>
+      <p class="a-sub">You were invited as <strong>{invite.role}</strong> ({invite.email}). Choose a password to finish setting up your account.</p>
+      {error && <p class="a-flash a-flash--err" role="alert">{error}</p>}
+      <form method="post" class="a-form">
+        <div class="a-field"><label for="password">New password</label><input id="password" name="password" type="password" autocomplete="new-password" minlength="12" required /><span class="a-help">At least 12 characters, with letters and numbers.</span></div>
+        <div class="a-field"><label for="confirm">Confirm password</label><input id="confirm" name="confirm" type="password" autocomplete="new-password" required /></div>
+        <button class="a-btn" type="submit">Create account</button>
+      </form>
+    </Fragment>
+  ) : (
+    <Fragment>
+      <h1>Invitation not valid</h1>
+      <p class="a-sub">This link has expired or was already used. Ask an administrator for a new invitation.</p>
+      <a class="a-btn" href="/admin/login">Go to sign in</a>
+    </Fragment>
+  )}
+</AuthShell>

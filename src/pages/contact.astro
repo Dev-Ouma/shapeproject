@@ -1,8 +1,10 @@
 ---
+import { loadSite } from '../lib/content';
 import Base from '../layouts/Base.astro';
 import PageHero from '../components/PageHero.astro';
 import Icon from '../components/Icon.astro';
-import { contact, socials } from '../data/site';
+const { contact, socials } = loadSite();
+const sent = Astro.url.searchParams.get('sent');
 ---
 
 <Base title="Contact">
@@ -16,22 +18,17 @@ import { contact, socials } from '../data/site';
           {socials.map((s) => <li><a href={s.href} aria-label={s.name} target="_blank" rel="noopener"><Icon name={s.icon} size={20} /></a></li>)}
         </ul>
       </div>
-      <form class="card contact__form" data-contact>
+      <form class="card contact__form" method="post" action="/api/contact">
+        {sent === '1' && <p class="form-flash form-flash--ok" role="status">Thank you — your message has been sent. We will get back to you soon.</p>}
+        {sent === '0' && <p class="form-flash form-flash--err" role="alert">Please fill in all fields with a valid email address.</p>}
+        <p class="hp" aria-hidden="true"><label>Leave empty<input name="website_hp" tabindex="-1" autocomplete="off" /></label></p>
         <label>Name<input name="name" required autocomplete="name" /></label>
         <label>Email<input name="email" type="email" required autocomplete="email" /></label>
         <label>Subject<input name="subject" required /></label>
         <label>Message<textarea name="message" rows="6" required></textarea></label>
         <button class="btn" type="submit">Send message</button>
-        <p class="form-note">Opens your email client addressed to {contact.email}.</p>
+        <p class="form-note">Or email us directly at <a href={`mailto:${contact.email}`}>{contact.email}</a>.</p>
       </form>
     </div>
   </section>
-  <script define:vars={{ email: contact.email }}>
-    document.querySelector('[data-contact]')?.addEventListener('submit', (e) => {
-      e.preventDefault();
-      const d = new FormData(e.target);
-      const body = `${d.get('message')}\n\n— ${d.get('name')} <${d.get('email')}>`;
-      location.href = `mailto:${email}?subject=${encodeURIComponent(d.get('subject'))}&body=${encodeURIComponent(body)}`;
-    });
-  </script>
 </Base>

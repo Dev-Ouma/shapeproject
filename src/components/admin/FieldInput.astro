@@ -1,0 +1,149 @@
+---
+// Renders one schema field as a form control. List fields recurse via Astro.self
+// and include a <template> so the browser can add rows.
+import type { Field } from '../../lib/schema';
+
+interface Props {
+  field: Field;
+  value: any;
+  name: string; // full form name, e.g. data[deliverables][0][code]
+  errorKey: string; // dotted error path, e.g. deliverables.0.code
+  errors: Record<string, string>;
+  options: Record<string, string[]>; // resolved dynamic options keyed "collection.field"
+  inTemplate?: boolean;
+}
+const { field: f, value, name, errorKey, errors, options, inTemplate = false } = Astro.props;
+const id = name.replace(/[^a-zA-Z0-9_]/g, '_');
+const error = errors[errorKey];
+const required = 'required' in f && f.required;
+const help = 'help' in f ? f.help : undefined;
+const opts = f.type === 'select' || f.type === 'multiselect'
+  ? Array.isArray(f.options) ? f.options : options[`${f.options.from}.${f.options.field}`] ?? []
+  : [];
+const toLocal = (iso: string) => {
+  if (!iso) return '';
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return '';
+  const pad = (n: number) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+};
+const listItems: any[] = f.type === 'list' && Array.isArray(value) ? value : [];
+const itemLabel = (item: any, i: number) => {
+  if (f.type !== 'list') return '';
+  const k = f.itemLabel ?? f.fields[0]?.name;
+  const v = item?.[k!];
+  return v ? String(v).replace(/^\/.*\//, '').slice(0, 80) : `Item ${i + 1}`;
+};
+const isHex = (v: unknown) => typeof v === 'string' && /^#[0-9a-f]{6}$/i.test(v);
+const isImage = (v: string) => /\.(png|jpe?g|webp|gif|svg)$/i.test(v);
+---
+
+{f.type === 'list' ? (
+  <fieldset class:list={['a-field', { 'has-error': Object.keys(errors).some((k) => k.startsWith(errorKey + '.')) }]} data-repeater data-name={name}>
+    <legend class="a-label">{f.label} <span class="a-help">({listItems.length})</span></legend>
+    {help && <span class="a-help">{help}</span>}
+    <div class="a-repeater" data-items>
+      {listItems.map((item, i) => (
+        <details class="a-item" data-item open={Object.keys(errors).some((k) => k.startsWith(`${errorKey}.${i}.`))}>
+          <summary>
+            <span class="a-item__title" data-item-title>{itemLabel(item, i)}</span>
+            <span class="a-item__tools">
+              <button type="button" class="a-iconbtn" data-move="-1" aria-label="Move up">↑</button>
+              <button type="button" class="a-iconbtn" data-move="1" aria-label="Move down">↓</button>
+              <button type="button" class="a-iconbtn a-iconbtn--danger" data-remove aria-label="Remove">✕</button>
+            </span>
+          </summary>
+          <div class="a-item__body">
+            {f.fields.map((sub) => (
+              <Astro.self field={sub} value={item?.[sub.name]} name={`${name}[${i}][${sub.name}]`} errorKey={`${errorKey}.${i}.${sub.name}`} errors={errors} options={options} />
+            ))}
+          </div>
+        </details>
+      ))}
+    </div>
+    <template data-template>
+      <details class="a-item" data-item open>
+        <summary>
+          <span class="a-item__title" data-item-title>New item</span>
+          <span class="a-item__tools">
+            <button type="button" class="a-iconbtn" data-move="-1" aria-label="Move up">↑</button>
+            <button type="button" class="a-iconbtn" data-move="1" aria-label="Move down">↓</button>
+            <button type="button" class="a-iconbtn a-iconbtn--danger" data-remove aria-label="Remove">✕</button>
+          </span>
+        </summary>
+        <div class="a-item__body">
+          {f.fields.map((sub) => (
+            <Astro.self field={sub} value={undefined} name={`${name}[__i__][${sub.name}]`} errorKey="__tpl__" errors={{}} options={options} inTemplate />
+          ))}
+        </div>
+      </details>
+    </template>
+    <div><button type="button" class="a-btn a-btn--ghost a-btn--sm" data-add>+ Add {f.label.toLowerCase().replace(/s$/, '')}</button></div>
+  </fieldset>
+) : (
+  <div class:list={['a-field', { 'has-error': !!error }]}>
+    {f.type === 'boolean' ? (
+      <label class="a-check"><input type="hidden" name={name} value="false" /><input id={id} type="checkbox" name={name} value="true" checked={!!value} /> {f.label}</label>
+    ) : f.type === 'multiselect' ? (
+      <Fragment>
+        <span class="a-label">{f.label}</span>
+        <div class="a-multi">
+          {opts.map((o) => <label><input type="checkbox" name={`${name}[]`} value={o} checked={Array.isArray(value) && value.includes(o)} /><span>{o}</span></label>)}
+          {!opts.length && <span class="a-help">No options yet.</span>}
+        </div>
+      </Fragment>
+    ) : (
+      <label for={id}>{f.label} {required && <span class="a-req">*</span>}</label>
+    )}
+
+    {f.type === 'text' || f.type === 'icon' ? <input id={id} type="text" name={name} value={value ?? ''} required={required && !inTemplate} maxlength={'max' in f ? f.max : undefined} data-title-source /> : null}
+    {f.type === 'email' && <input id={id} type="email" name={name} value={value ?? ''} required={required && !inTemplate} />}
+    {f.type === 'url' && <input id={id} type="url" name={name} value={value ?? ''} required={required && !inTemplate} placeholder="https://" />}
+    {f.type === 'number' && <input id={id} type="number" name={name} value={value ?? ''} required={required && !inTemplate} min={f.min} max={f.max} />}
+    {f.type === 'date' && <input id={id} type="date" name={name} value={value ?? ''} required={required && !inTemplate} />}
+    {f.type === 'datetime' && (
+      <Fragment>
+        <input id={id} type="datetime-local" value={toLocal(value)} required={required && !inTemplate} data-datetime />
+        <input type="hidden" name={name} value={value ?? ''} data-datetime-iso />
+      </Fragment>
+    )}
+    {f.type === 'textarea' && <textarea id={id} name={name} required={required && !inTemplate} rows="4" data-title-source>{value ?? ''}</textarea>}
+    {f.type === 'select' && (
+      <select id={id} name={name} required={required && !inTemplate} data-title-source>
+        {!required && <option value="">—</option>}
+        {required && !value && <option value="" disabled selected>Choose…</option>}
+        {opts.map((o) => <option value={o} selected={o === value}>{o}</option>)}
+        {value && !opts.includes(value) && <option value={value} selected>{value} (missing)</option>}
+      </select>
+    )}
+    {f.type === 'color' && (
+      <div class="a-color">
+        <input type="color" value={isHex(value) ? value : '#037b90'} data-color-picker aria-label={`${f.label} picker`} />
+        <input id={id} type="text" name={name} value={value ?? ''} required={required && !inTemplate} pattern="#[0-9a-fA-F]{6}" data-color-text />
+      </div>
+    )}
+    {f.type === 'tags' && <input id={id} type="text" name={name} value={Array.isArray(value) ? value.join(', ') : ''} placeholder="Comma separated" />}
+    {(f.type === 'image' || f.type === 'file') && (
+      <div class="a-media-field" data-media-field data-kind={f.type}>
+        <div class="a-thumb" data-thumb>{value && isImage(value) ? <img src={value} alt="" /> : value ? 'FILE' : 'None'}</div>
+        <div>
+          <div class="a-media-field__row">
+            <input id={id} type="text" name={name} value={value ?? ''} required={required && !inTemplate} class="a-input" placeholder="/uploads/… or /images/…" data-media-input data-title-source />
+            <button type="button" class="a-btn a-btn--ghost a-btn--sm" data-media-pick>Choose…</button>
+          </div>
+        </div>
+      </div>
+    )}
+    {f.type === 'richtext' && (
+      <div class="a-rte" data-rte>
+        <div class="a-rte__bar" data-rte-bar></div>
+        <div class="a-rte__body" data-rte-body></div>
+        <textarea name={name} hidden data-rte-input>{value ?? ''}</textarea>
+      </div>
+    )}
+
+    {help && f.type !== 'boolean' && <span class="a-help">{help}</span>}
+    {help && f.type === 'boolean' && <span class="a-help">{help}</span>}
+    {error && <span class="a-error" role="alert">{error}</span>}
+  </div>
+)}

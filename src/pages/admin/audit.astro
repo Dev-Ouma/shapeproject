@@ -1,0 +1,13 @@
+---
+import Admin from '../../layouts/Admin.astro';
+import { recentAudit } from '../../lib/auth';
+const rows = recentAudit(300);
+---
+
+<Admin title="Activity log" crumbs={[{ label: 'Activity log' }]}>
+  <div class="a-head"><div><h1>Activity log</h1><p>Last 300 actions in the CMS.</p></div></div>
+  <table class="a-table">
+    <thead><tr><th>When (UTC)</th><th>Who</th><th>Action</th><th>Target</th></tr></thead>
+    <tbody>{rows.map((r) => <tr><td class="a-help">{r.at}</td><td>{r.user_name ?? '—'}</td><td><code>{r.action}</code></td><td>{r.target}</td></tr>)}</tbody>
+  </table>
+</Admin>

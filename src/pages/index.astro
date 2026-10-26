@@ -1,11 +1,11 @@
 ---
+import { loadSite } from '../lib/content';
 import Base from '../layouts/Base.astro';
 import PartnerGrid from '../components/PartnerGrid.astro';
 import NewsCard from '../components/NewsCard.astro';
 import Lucide from '../components/Lucide.astro';
 import NetworkBg from '../components/NetworkBg.astro';
-import { slides, facts } from '../data/site';
-import { news } from '../data/news';
+const { slides, facts, posts: news } = loadSite();
 ---
 
 <Base title="Home">

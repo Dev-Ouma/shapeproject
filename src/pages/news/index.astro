@@ -1,7 +1,8 @@
 ---
+import { loadSite } from '../../lib/content';
 import Base from '../../layouts/Base.astro';
 import PostArchive from '../../components/PostArchive.astro';
-import { news } from '../../data/news';
+const { posts: news } = loadSite();
 ---
 
 <Base title="News">

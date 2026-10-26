@@ -1,0 +1,27 @@
+# /etc/systemd/system/shape.service
+[Unit]
+Description=SHAPE website + CMS (Astro SSR)
+After=network.target
+
+[Service]
+Type=simple
+User=shape
+Group=shape
+WorkingDirectory=/srv/shape/current
+EnvironmentFile=/srv/shape/shared/.env
+ExecStart=/usr/bin/node /srv/shape/current/dist/server/entry.mjs
+Restart=always
+RestartSec=3
+# Hardening
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/srv/shape/shared
+ProtectKernelTunables=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+LockPersonality=true
+
+[Install]
+WantedBy=multi-user.target

@@ -1,14 +1,21 @@
 ---
-import { statSync } from 'node:fs';
+import { loadSite } from '../lib/content';
+import { statSync, existsSync } from 'node:fs';
+import { UPLOAD_DIR } from '../lib/media';
 import { join } from 'node:path';
 import Base from '../layouts/Base.astro';
 import Lucide from '../components/Lucide.astro';
-import { brandAssets, photoAlbums } from '../data/programme';
-import { workPackages, wpStatus, statusLabel, disclaimer } from '../data/site';
+import { wpStatus as _wpStatus, statusLabel } from '../lib/status';
+const { brandAssets, photoAlbums, workPackages, disclaimer, currentMonth } = loadSite();
+const wpStatus = (w: { start: number; end: number }) => _wpStatus(w, currentMonth);
 
 const size = (file: string) => {
   try {
-    const b = statSync(join(process.cwd(), 'public', file)).size;
+    const rel = file.split('?')[0];
+    const candidates = rel.startsWith('/uploads/') ? [join(UPLOAD_DIR(), rel.slice('/uploads/'.length))] : [join(process.cwd(), 'public', rel), join(process.cwd(), 'dist', 'client', rel)];
+    const hit = candidates.find((p) => existsSync(p));
+    if (!hit) return '';
+    const b = statSync(hit).size;
     return b > 1e6 ? `${(b / 1e6).toFixed(1)} MB` : `${Math.round(b / 1e3)} KB`;
   } catch {
     return '';
@@ -41,7 +48,7 @@ const photoCount = photoAlbums.reduce((n, a) => n + a.photos.length, 0);
       </div>
       <div class="mat-counts">
         <a href="#brand" class="mat-count"><Lucide name="Palette" size={22} /><strong>{brandAssets.length}</strong><span>brand files</span></a>
-        <a href="#docs" class="mat-count"><Lucide name="FileText" size={22} /><strong>{docs.length}</strong><span>planned documents</span></a>
+        <a href="#docs" class="mat-count"><Lucide name="FileText" size={22} /><strong>{docs.length}</strong><span>{docs.some((d) => d.file) ? 'project documents' : 'planned documents'}</span></a>
         <a href="#photos" class="mat-count"><Lucide name="Images" size={22} /><strong>{photoCount}</strong><span>photos</span></a>
       </div>
     </div>
@@ -80,11 +87,20 @@ const photoCount = photoAlbums.reduce((n, a) => n + a.photos.length, 0);
               <span class="doc-card__wp">Work Package {d.wp}</span>
               <h3>{d.desc}</h3>
               <div class="doc-card__foot">
-                {d.status === 'done' ? <span class="status status--pending">Awaiting publication</span> : <span class={`status status--${d.status}`}>{statusLabel[d.status]}</span>}
-                <span class="doc-card__due">Expected M{d.due}</span>
+                {d.file ? (
+                  <Fragment>
+                    <span class="status status--done">Available</span>
+                    <a class="dl-btn" href={d.file} download><Lucide name="Download" size={14} /> {ext(d.file)}</a>
+                  </Fragment>
+                ) : (
+                  <Fragment>
+                    {d.status === 'done' ? <span class="status status--pending">Awaiting publication</span> : <span class={`status status--${d.status}`}>{statusLabel[d.status]}</span>}
+                    <span class="doc-card__due">Expected M{d.due}</span>
+                  </Fragment>
+                )}
               </div>
             </div>
-            <span class="doc-card__lock" title="Not yet published"><Lucide name="Clock" size={16} /></span>
+            {!d.file && <span class="doc-card__lock" title="Not yet published"><Lucide name="Clock" size={16} /></span>}
           </article>
         ))}
       </div>

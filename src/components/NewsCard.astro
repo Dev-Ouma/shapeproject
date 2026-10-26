@@ -1,6 +1,7 @@
 ---
-import { formatDate, type NewsPost } from '../data/news';
 import Lucide from './Lucide.astro';
+import { formatDate } from '../lib/format';
+import type { Post as NewsPost } from '../lib/content';
 interface Props {
   post: NewsPost;
 }

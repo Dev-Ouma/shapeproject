@@ -1,7 +1,12 @@
 ---
+import { loadSite } from '../lib/content';
 import Base from '../layouts/Base.astro';
 import Lucide from '../components/Lucide.astro';
-import { workPackages, wpStatus, wpProgress, statusLabel } from '../data/site';
+import { wpStatus as _wpStatus, wpProgress as _wpProgress, statusLabel } from '../lib/status';
+const site = loadSite();
+const { workPackages, currentMonth } = site;
+const wpStatus = (w: { start: number; end: number }) => _wpStatus(w, currentMonth);
+const wpProgress = (w: { start: number; end: number }) => _wpProgress(w, currentMonth);
 
 const leads = [...new Set(workPackages.map((w) => w.lead))];
 ---

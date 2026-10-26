@@ -1,0 +1,49 @@
+---
+import Admin from '../../layouts/Admin.astro';
+import { listComments, setCommentStatus, deleteComment, type Comment } from '../../lib/engagement';
+import { audit } from '../../lib/auth';
+
+if (Astro.request.method === 'POST') {
+  const f = await Astro.request.formData();
+  const id = Number(f.get('id'));
+  const action = String(f.get('action'));
+  if (action === 'delete') deleteComment(id);
+  else if (['approved', 'pending', 'spam'].includes(action)) setCommentStatus(id, action as Comment['status']);
+  audit(Astro.locals.user!.id, `comment.${action}`, String(id));
+  return Astro.redirect(`/admin/comments?status=${Astro.url.searchParams.get('status') ?? 'pending'}`, 303);
+}
+const status = (Astro.url.searchParams.get('status') ?? 'pending') as Comment['status'] | 'all';
+const comments = listComments(status === 'all' ? undefined : status);
+const tabs = [['pending', 'Pending'], ['approved', 'Approved'], ['spam', 'Spam'], ['all', 'All']];
+---
+
+<Admin title="Comments" crumbs={[{ label: 'Comments' }]}>
+  <div class="a-head"><div><h1>Comments</h1><p>New comments are held here until approved.</p></div></div>
+  <div style="display:flex;gap:6px;margin-bottom:14px">
+    {tabs.map(([k, l]) => <a class:list={['a-btn a-btn--sm', k === status ? '' : 'a-btn--ghost']} href={`?status=${k}`}>{l}</a>)}
+  </div>
+  {comments.length === 0 ? <div class="a-card a-empty">No comments here.</div> : (
+    <table class="a-table">
+      <thead><tr><th>Author</th><th>Comment</th><th>Post</th><th>Status</th><th></th></tr></thead>
+      <tbody>
+        {comments.map((c) => (
+          <tr>
+            <td><strong>{c.author}</strong><div class="a-help">{c.email}</div>{c.url && <div class="a-help">{c.url}</div>}<div class="a-help">{c.created_at}</div></td>
+            <td style="max-width:420px;white-space:pre-line">{c.body}</td>
+            <td><a href={`/news/${c.post_slug}/#comment-${c.id}`} target="_blank" rel="noopener">{c.post_slug.slice(0, 40)}…</a></td>
+            <td><span class={`a-pill a-pill--${c.status}`}>{c.status}</span></td>
+            <td>
+              <form method="post" style="display:flex;gap:4px;flex-wrap:wrap;justify-content:flex-end">
+                <input type="hidden" name="id" value={c.id} />
+                {c.status !== 'approved' && <button class="a-btn a-btn--sm" name="action" value="approved">Approve</button>}
+                {c.status === 'approved' && <button class="a-btn a-btn--ghost a-btn--sm" name="action" value="pending">Unapprove</button>}
+                {c.status !== 'spam' && <button class="a-btn a-btn--ghost a-btn--sm" name="action" value="spam">Spam</button>}
+                <button class="a-btn a-btn--danger a-btn--sm" name="action" value="delete" onclick="return confirm('Delete this comment?')">Delete</button>
+              </form>
+            </td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
+  )}
+</Admin>

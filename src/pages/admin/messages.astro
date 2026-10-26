@@ -1,0 +1,49 @@
+---
+import Admin from '../../layouts/Admin.astro';
+import { listMessages, getMessage, markRead, deleteMessage } from '../../lib/engagement';
+import { audit } from '../../lib/auth';
+
+if (Astro.request.method === 'POST') {
+  const f = await Astro.request.formData();
+  const id = Number(f.get('id'));
+  const action = String(f.get('action'));
+  if (action === 'delete') { deleteMessage(id); audit(Astro.locals.user!.id, 'message.delete', String(id)); return Astro.redirect('/admin/messages', 303); }
+  if (action === 'unread') markRead(id, false);
+  return Astro.redirect('/admin/messages', 303);
+}
+const openId = Number(Astro.url.searchParams.get('id'));
+const open = openId ? getMessage(openId) : undefined;
+if (open && !open.read) markRead(open.id);
+const messages = listMessages();
+---
+
+<Admin title="Messages" crumbs={[{ label: 'Messages' }]}>
+  <div class="a-head"><div><h1>Messages</h1><p>Sent from the Contact page.</p></div></div>
+  {open && (
+    <div class="a-card" style="margin-bottom:18px">
+      <h2 style="font-size:1.2rem">{open.subject}</h2>
+      <p class="a-help">From <strong>{open.name}</strong> &lt;<a href={`mailto:${open.email}?subject=${encodeURIComponent('Re: ' + open.subject)}`}>{open.email}</a>&gt; · {open.created_at} UTC</p>
+      <p style="white-space:pre-line">{open.body}</p>
+      <form method="post" style="display:flex;gap:8px">
+        <input type="hidden" name="id" value={open.id} />
+        <a class="a-btn" href={`mailto:${open.email}?subject=${encodeURIComponent('Re: ' + open.subject)}`}>Reply by email</a>
+        <button class="a-btn a-btn--ghost" name="action" value="unread">Mark unread</button>
+        <button class="a-btn a-btn--danger" name="action" value="delete" onclick="return confirm('Delete this message?')">Delete</button>
+      </form>
+    </div>
+  )}
+  {messages.length === 0 ? <div class="a-card a-empty">No messages yet.</div> : (
+    <table class="a-table">
+      <thead><tr><th>From</th><th>Subject</th><th>Received</th></tr></thead>
+      <tbody>
+        {messages.map((m) => (
+          <tr>
+            <td>{m.read ? m.name : <strong>{m.name}</strong>}<div class="a-help">{m.email}</div></td>
+            <td><a href={`?id=${m.id}`}>{m.read ? m.subject : <strong>{m.subject}</strong>}</a></td>
+            <td class="a-help">{m.created_at}</td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
+  )}
+</Admin>

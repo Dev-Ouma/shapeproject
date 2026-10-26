@@ -1,9 +1,10 @@
 import type { APIRoute } from 'astro';
-import { news } from '../data/news';
+import { loadSite } from '../lib/content';
 
 const esc = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 
 export const GET: APIRoute = ({ site }) => {
+  const { posts: news, categories } = loadSite();
   const base = site ?? new URL('https://shapeproject.org');
   const items = news
     .map((p) => {

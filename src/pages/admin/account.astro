@@ -1,0 +1,51 @@
+---
+import Admin from '../../layouts/Admin.astro';
+import { findUserByEmail, verifyPassword, passwordProblem, setPassword, audit, updateUser, logoutOthers, SESSION_COOKIE } from '../../lib/auth';
+
+const me = Astro.locals.user!;
+let error = '';
+let ok = '';
+if (Astro.request.method === 'POST') {
+  const f = await Astro.request.formData();
+  if (f.get('action') === 'name') {
+    const name = String(f.get('name') ?? '').trim();
+    if (name) { updateUser(me.id, { name }); ok = 'Name updated.'; }
+  } else {
+    const current = String(f.get('current') ?? '');
+    const next = String(f.get('next') ?? '');
+    const confirm = String(f.get('confirm') ?? '');
+    const u = findUserByEmail(me.email);
+    if (!verifyPassword(current, u?.password_hash ?? null)) error = 'Current password is incorrect.';
+    else error = passwordProblem(next) ?? (next !== confirm ? 'New passwords do not match.' : '');
+    if (!error) {
+      setPassword(me.id, next);
+      // Sign out other sessions.
+      logoutOthers(me.id, Astro.cookies.get(SESSION_COOKIE)?.value);
+      audit(me.id, 'account.password');
+      ok = 'Password changed. Other sessions were signed out — please sign in again on other devices.';
+    }
+  }
+}
+---
+
+<Admin title="My account" crumbs={[{ label: 'My account' }]}>
+  <div class="a-head"><div><h1>My account</h1><p>{me.email} · <span class="a-role">{me.role}</span></p></div></div>
+  {ok && <p class="a-flash a-flash--ok" role="status">{ok}</p>}
+  {error && <p class="a-flash a-flash--err" role="alert">{error}</p>}
+  <div class="a-grid2">
+    <form method="post" class="a-card a-form">
+      <h3>Profile</h3>
+      <input type="hidden" name="action" value="name" />
+      <div class="a-field"><label for="name">Display name</label><input id="name" name="name" value={me.name} required /></div>
+      <button class="a-btn" type="submit">Save</button>
+    </form>
+    <form method="post" class="a-card a-form">
+      <h3>Change password</h3>
+      <input type="hidden" name="action" value="password" />
+      <div class="a-field"><label for="current">Current password</label><input id="current" type="password" name="current" autocomplete="current-password" required /></div>
+      <div class="a-field"><label for="next">New password</label><input id="next" type="password" name="next" autocomplete="new-password" minlength="12" required /><span class="a-help">At least 12 characters, letters and numbers.</span></div>
+      <div class="a-field"><label for="confirm">Confirm new password</label><input id="confirm" type="password" name="confirm" autocomplete="new-password" required /></div>
+      <button class="a-btn" type="submit">Change password</button>
+    </form>
+  </div>
+</Admin>

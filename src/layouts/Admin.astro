@@ -1,0 +1,92 @@
+---
+import '../styles/admin.css';
+import Lucide from '../components/Lucide.astro';
+import { collections } from '../lib/schema';
+import { can } from '../lib/auth';
+import { countPendingComments, countUnreadMessages } from '../lib/engagement';
+
+interface Props {
+  title: string;
+  crumbs?: { label: string; href?: string }[];
+}
+const { title, crumbs = [] } = Astro.props;
+const user = Astro.locals.user!;
+const path = Astro.url.pathname;
+const isAdmin = can(user, 'admin');
+const groups = ['Site', 'Home', 'About', 'Programme', 'People', 'Library', 'News'] as const;
+const pending = countPendingComments();
+const unread = countUnreadMessages();
+const active = (href: string) => (href === '/admin' ? path === '/admin' || path === '/admin/' : path.startsWith(href));
+---
+
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="robots" content="noindex, nofollow" />
+    <title>{title} · SHAPE CMS</title>
+    <link rel="icon" href="/images/cropped-SHAPE-final-Logo-32x32.jpeg" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Poppins:wght@600;700;800&display=swap" rel="stylesheet" />
+  </head>
+  <body class="admin">
+    <div class="a-shell">
+      <aside class="a-side" data-side aria-label="Admin navigation">
+        <a class="a-brand" href="/admin">
+          <img src="/images/cropped-SHAPE-final-Logo-192x192.jpeg" alt="" />
+          <div><strong>SHAPE CMS</strong><span>Content management</span></div>
+        </a>
+        <nav class="a-nav">
+          <a href="/admin" class:list={{ 'is-active': active('/admin') }}><Lucide name="LayoutDashboard" size={17} /> Dashboard</a>
+          <a href="/" target="_blank" rel="noopener"><Lucide name="ExternalLink" size={17} /> View site</a>
+          {groups.map((g) => {
+            const items = collections.filter((c) => c.group === g && (!c.adminOnly || isAdmin));
+            return items.length > 0 && (
+              <Fragment>
+                <h4>{g}</h4>
+                {items.map((c) => (
+                  <a href={`/admin/content/${c.key}`} class:list={{ 'is-active': active(`/admin/content/${c.key}`) }}><Lucide name={c.icon as any} size={17} /> {c.label}</a>
+                ))}
+              </Fragment>
+            );
+          })}
+          <h4>Engagement</h4>
+          <a href="/admin/comments" class:list={{ 'is-active': active('/admin/comments') }}><Lucide name="MessageSquare" size={17} /> Comments {pending > 0 && <span class="a-badge">{pending}</span>}</a>
+          <a href="/admin/messages" class:list={{ 'is-active': active('/admin/messages') }}><Lucide name="Inbox" size={17} /> Messages {unread > 0 && <span class="a-badge">{unread}</span>}</a>
+          <h4>Tools</h4>
+          <a href="/admin/media" class:list={{ 'is-active': active('/admin/media') }}><Lucide name="Image" size={17} /> Media library</a>
+          <a href="/admin/book" class:list={{ 'is-active': active('/admin/book') }}><Lucide name="BookOpen" size={17} /> Project Book PDF</a>
+          {isAdmin && <a href="/admin/users" class:list={{ 'is-active': active('/admin/users') }}><Lucide name="UserCog" size={17} /> Users</a>}
+          {isAdmin && <a href="/admin/audit" class:list={{ 'is-active': active('/admin/audit') }}><Lucide name="History" size={17} /> Activity log</a>}
+          <a href="/admin/account" class:list={{ 'is-active': active('/admin/account') }}><Lucide name="KeyRound" size={17} /> My account</a>
+        </nav>
+      </aside>
+      <div class="a-main">
+        <header class="a-top">
+          <div style="display:flex;align-items:center;gap:10px">
+            <button class="a-btn a-btn--ghost a-btn--sm a-menu-btn" type="button" data-menu aria-label="Open menu"><Lucide name="Menu" size={16} /></button>
+            <nav class="a-top__crumbs" aria-label="Breadcrumb">
+              <a href="/admin">Dashboard</a>
+              {crumbs.map((c) => <Fragment> / {c.href ? <a href={c.href}>{c.label}</a> : <span>{c.label}</span>}</Fragment>)}
+            </nav>
+          </div>
+          <div class="a-top__user">
+            <span>{user.name}</span>
+            <span class="a-role">{user.role}</span>
+            <form method="post" action="/admin/logout"><button class="a-btn a-btn--ghost a-btn--sm" type="submit"><Lucide name="LogOut" size={15} /> Log out</button></form>
+          </div>
+        </header>
+        <main class="a-content" id="main">
+          <slot />
+        </main>
+      </div>
+    </div>
+    <script>
+      const side = document.querySelector('[data-side]');
+      document.querySelector('[data-menu]')?.addEventListener('click', () => side?.classList.toggle('is-open'));
+      side?.addEventListener('click', (e) => { if (e.target === side) side.classList.remove('is-open'); });
+    </script>
+  </body>
+</html>
