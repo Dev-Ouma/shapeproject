@@ -54,6 +54,8 @@ proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
 proxy_set_header X-Real-IP $remote_addr;
 proxy_set_header Connection "";
 proxy_read_timeout 120s;
+# Inside each location, because any add_header there drops server-level headers.
+add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" always;
 SNIP
 cat > /etc/nginx/sites-available/shapeproject <<SITE
 upstream shape_app { server 127.0.0.1:4321; keepalive 16; }
@@ -68,6 +70,7 @@ server {
     alias $APP/shared/uploads/;
     add_header Cache-Control "public, max-age=31536000, immutable";
     add_header X-Content-Type-Options nosniff always;
+    add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" always;
     try_files \$uri =404;
   }
   location /_astro/ {
@@ -97,8 +100,12 @@ systemctl reload nginx
 
 # 3. TLS certificate + HTTPS redirect + HSTS
 certbot --nginx -d $DOMAIN --non-interactive --agree-tos --redirect -m shape@ouk.ac.ke
-grep -q Strict-Transport-Security /etc/nginx/sites-available/shapeproject || \
-  sed -i "0,/listen 443 ssl/s//listen 443 ssl;\n    add_header Strict-Transport-Security \"max-age=31536000; includeSubDomains\" always/" /etc/nginx/sites-available/shapeproject
+# Port 443 is owned by the SOMAS DR stream passthrough on this host: if so, serve
+# HTTPS on 127.0.0.1:8443 and let the stream route this name there by SNI.
+if [ -f /etc/nginx/somas-dr-stream.conf ]; then
+  sed -i 's|^\s*listen 443 ssl;.*|    listen 127.0.0.1:8443 ssl;|' /etc/nginx/sites-available/shapeproject
+  grep -q ssl_preread /etc/nginx/somas-dr-stream.conf || echo "WARNING: route $DOMAIN to 127.0.0.1:8443 in somas-dr-stream.conf (see deploy/share-443.sh)"
+fi
 nginx -t && systemctl reload nginx
 
 # 4. Nightly backups (DB snapshot + uploads, 30 days) in the app user's crontab
