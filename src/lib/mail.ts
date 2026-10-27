@@ -12,6 +12,8 @@ function getTransport() {
     port: Number(process.env.SMTP_PORT ?? 587),
     secure: Number(process.env.SMTP_PORT ?? 587) === 465,
     requireTLS: Number(process.env.SMTP_PORT ?? 587) === 587,
+    // Google's SMTP relay checks the EHLO name; announce the site's host rather than the machine name.
+    name: process.env.SMTP_HELO ?? (process.env.SITE_URL ? new URL(process.env.SITE_URL).hostname : undefined),
     auth: process.env.SMTP_USER ? { user: process.env.SMTP_USER, pass: process.env.SMTP_PASS } : undefined,
   });
   return transport;
