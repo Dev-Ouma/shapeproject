@@ -210,16 +210,16 @@ All test cases were executed against the production build of release **d2a2a47**
 | **Group 13** | Administration – Audit Trail, Release Notes & System Overview | 11 | **Passed** |
 | **Group 14** | Administration – Maintenance Mode & Lockdown | 13 | **Passed** |
 | **Group 15** | CMS Dashboard, Analytics Screen & Responsive Layout | 12 | **Passed** |
-| **Group 16** | Security, Performance & Deployment (Non-Functional) | 16 | **Conditional** |
+| **Group 16** | Security, Performance & Deployment (Non-Functional) | 16 | **Passed** |
 
 **Execution Summary**
 
 | Metric | Count | Percentage |
 | ----- | :---: | :---: |
 | Total Test Cases | 199 | 100% |
-| Passed | 196 | 98.5% |
+| Passed | 197 | 99.0% |
 | Failed | 0 | 0.0% |
-| Pending (awaiting an external party) | 3 | 1.5% |
+| Pending (awaiting an external party) | 2 | 1.0% |
 
 # **Functional Test Cases (User & Developer Perspective)**
 
@@ -487,7 +487,7 @@ All test cases were executed against the production build of release **d2a2a47**
 | :---: | ----- | ----- | ----- | ----- | :---: |
 | **TC\_SH\_184** \[Positive\] | Security / DAST – CMS | Authenticated HawkScan of the production build (all CMS pages). | No unresolved High findings. | 3 High alerts (XSS reflected, XSS in CSV, SQL injection) reproduced manually and confirmed false positives; triaged on StackHawk (scan 5c321d44). | **Pass** |
 | **TC\_SH\_185** \[Positive\] | Security / DAST – live site | Public HawkScan of https\://shapeproject.ouk.ac.ke (forms and CMS excluded to protect live data). | No High findings; Medium findings fixed or justified. | No High. Proxy Disclosure fixed (TRACE/OPTIONS refused); Anti-CSRF token alert justified by origin checks (scan 6a537506). | **Pass** |
-| **TC\_SH\_186** \[Positive\] | Security / Final rescans | Repeat both scans on the final release d2a2a47. | No new High findings. | Scans run at handover; results to be attached to the StackHawk application "Production" and "Live" environments. | **Pending** |
+| **TC\_SH\_186** \[Positive\] | Security / Final rescans | Repeat both scans on the final release d2a2a47. | No new High findings. | CMS scan 36b7b8a6: High alerts (stored/reflected XSS) re-checked — stored text is escaped in pages and JSON, attributes quoted; triaged false positive. Live scan 8172cd3e: Nginx version hidden server-wide; remaining alerts justified and triaged. No open High findings. | **Pass** |
 | **TC\_SH\_187** \[Positive\] | Security / Dependencies | Run npm audit; check all packages and runtime. | 0 vulnerabilities; latest compatible releases. | 0 vulnerabilities; Astro 7.4, Node adapter 11.1, Nodemailer 10.2, sharp 0.35, Playwright 1.64, Node.js 24.22.1 LTS, SQLite 3.53. 7 advisories (1 critical) cleared by upgrade. | **Pass** |
 | **TC\_SH\_188** \[Positive\] | Security / Headers | Request any page. | CSP (no inline scripts), HSTS, X-Frame-Options DENY, nosniff, Referrer-Policy, Permissions-Policy. | All present (automated and live). | **Pass** |
 | **TC\_SH\_189** \[Negative\] | Security / HTTP methods | Send TRACE, OPTIONS, PUT to the site. | HTTP 405. | 405 returned on live site. | **Pass** |
@@ -507,7 +507,7 @@ All test cases were executed against the production build of release **d2a2a47**
 | No. | Issue Name | Description |
 | :---: | ----- | ----- |
 | **BM-001** | Google Search Console Sitemap Status | The submitted sitemap shows "Couldn't fetch" although the live test passes ("URL is available to Google"). This is normal for a new property. Re-check within 48 hours; if it persists, confirm with OUK ICT that the university firewall does not block Google's crawlers. Closes TC\_SH\_055 and TC\_SH\_056. |
-| **BM-002** | Final Security Rescan Results | Attach the final authenticated and live HawkScan results for release d2a2a47 to this document and triage any new alerts. Closes TC\_SH\_186. |
+| **BM-002** | Security Scan Follow-up (Closed) | Final scans of release d2a2a47 completed: CMS scan 36b7b8a6-ffd3-46e3-9b19-fbd6dc920186 and live scan 8172cd3e-b9ed-4afa-8957-fdd73991174c on the StackHawk application. All alerts triaged with reasons; `server_tokens off` set in `/etc/nginx/nginx.conf` so no Nginx version is exposed by any site on the server. Re-run `hawk scan stackhawk.yml` (local build) and `hawk scan stackhawk-live.yml` after each major release. |
 | **BM-003** | Handover Access Clean-up | Before handover: remove the developer SSH key from `/home/wabwire/.ssh/authorized_keys`; remove the password-free sudo rule `/etc/sudoers.d/90-wabwire-nopasswd`; change the CMS admin password (the initial one is shorter than the 12-character policy); rotate the StackHawk API key that was shared during the project. |
 | **BM-004** | Server Operating System Updates | About 70 Ubuntu packages on the shared server have updates. Node.js, Nginx and ImageMagick (used by this site) were updated; the rest belong to other services (Matrix, PHP sites, SOMAS DR relay) and should be scheduled by the server owners. |
 | **BM-005** | Email Authentication Records | Outgoing mail uses the Google Workspace relay from 197.136.12.54. Ask the ouk.ac.ke Workspace admin to confirm SPF and DKIM cover the relay so emails do not land in spam. |
