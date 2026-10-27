@@ -1,0 +1,209 @@
+---
+import Admin from '../../layouts/Admin.astro';
+import Lucide from '../../components/Lucide.astro';
+import Sparkline from '../../components/admin/Sparkline.astro';
+import TrendChart from '../../components/admin/TrendChart.astro';
+import {
+  rangeFor, summary, daily, topPages, breakdown, topClicks, topSearches, zeroResultSearches, notFound, heatmap, liveVisitors,
+} from '../../lib/analytics';
+import { compact, duration, delta } from '../../lib/charts';
+
+const RANGES = [7, 30, 90, 365] as const;
+const asked = Number(Astro.url.searchParams.get('days'));
+const days = (RANGES as readonly number[]).includes(asked) ? asked : 30;
+const { cur, prev } = rangeFor(days);
+const now = summary(cur);
+const before = summary(prev);
+const series = daily(cur);
+const live = liveVisitors();
+const pages = topPages(cur, 12);
+const refs = breakdown(cur, 'ref');
+const campaigns = breakdown(cur, 'utm', 6);
+const devices = breakdown(cur, 'device', 3);
+const browsers = breakdown(cur, 'browser', 6);
+const systems = breakdown(cur, 'os', 6);
+const langs = breakdown(cur, 'lang', 6);
+const clicks = topClicks(cur, ['click'], 10);
+const exits = topClicks(cur, ['outbound', 'download', 'contact'], 10);
+const searches = topSearches(cur, 10);
+const zero = zeroResultSearches(cur);
+const missing = notFound(cur);
+const heat = heatmap(cur);
+const heatMax = Math.max(1, ...heat.flat());
+
+const C = { teal: '#008ba3', coral: '#e8693a', violet: '#6b5bd6' };
+const kpis = [
+  { key: 'visitors', label: 'Visitors', icon: 'Users', value: compact(now.visitors), d: delta(now.visitors, before.visitors), spark: series.map((p) => p.visitors), color: C.teal, good: 1 },
+  { key: 'pageviews', label: 'Page views', icon: 'Eye', value: compact(now.pageviews), d: delta(now.pageviews, before.pageviews), spark: series.map((p) => p.pageviews), color: C.coral, good: 1 },
+  { key: 'engaged', label: 'Avg. engaged time', icon: 'Timer', value: duration(now.avgEngagedMs), d: delta(now.avgEngagedMs, before.avgEngagedMs), spark: null, color: C.teal, good: 1 },
+  { key: 'bounce', label: 'Bounce rate', icon: 'CornerDownLeft', value: `${Math.round(now.bounceRate * 100)}%`, d: before.sessions ? now.bounceRate - before.bounceRate : null, spark: null, color: C.coral, good: -1, points: true },
+  { key: 'clicks', label: 'Clicks', icon: 'MousePointerClick', value: compact(now.clicks), d: delta(now.clicks, before.clicks), spark: series.map((p) => p.clicks), color: C.violet, good: 1 },
+  { key: 'searches', label: 'Searches', icon: 'Search', value: compact(now.searches), d: delta(now.searches, before.searches), spark: series.map((p) => p.searches), color: C.teal, good: 1 },
+];
+const deltaText = (k: (typeof kpis)[number]) =>
+  k.d === null ? 'No earlier data'
+  // Very large growth reads better as a multiple than as "+4154%".
+  : !k.points && k.d >= 9 ? `${Math.round(k.d + 1)}× prior ${days}d` : `${k.d > 0 ? '+' : ''}${k.points ? Math.round(k.d * 100) + ' pts' : Math.round(k.d * 100) + '%'} vs prior ${days}d`;
+const tone = (k: (typeof kpis)[number]) => (k.d === null || Math.abs(k.d) < 0.005 ? 'flat' : k.d * k.good > 0 ? 'up' : 'down');
+const share = (rows: { visitors: number }[]) => Math.max(1, ...rows.map((r) => r.visitors));
+const deviceTotal = devices.reduce((a, b) => a + b.visitors, 0) || 1;
+const deviceColor: Record<string, string> = { Desktop: C.teal, Mobile: C.coral, Tablet: C.violet };
+const weekdays = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+const empty = now.pageviews === 0;
+const pct = (n: number, d: number) => `${Math.round((n / (d || 1)) * 100)}%`;
+---
+
+<Admin title="Analytics" crumbs={[{ label: 'Analytics' }]}>
+  <div class="a-head an-head">
+    <div>
+      <h1>Analytics</h1>
+      <p>Visits, clicks and searches on the public website. Cookieless and first-party: no personal data is stored.</p>
+    </div>
+    <div class="an-tools">
+      <span class:list={['an-live', { 'is-on': live.visitors > 0 }]} title="Visitors active in the last 5 minutes"><i></i>{live.visitors} live now</span>
+      <nav class="an-range" aria-label="Date range">
+        {RANGES.map((r) => <a href={`?days=${r}`} aria-current={r === days ? 'page' : undefined}>{r === 365 ? '12 months' : `${r} days`}</a>)}
+      </nav>
+      <a class="a-btn a-btn--ghost a-btn--sm" href={`/admin/api/analytics.csv?days=${days}`} download><Lucide name="Download" size={15} /> Export CSV</a>
+    </div>
+  </div>
+
+  {empty && (
+    <div class="a-card an-empty">
+      <Lucide name="ChartSpline" size={30} />
+      <div><strong>No visits recorded in this period yet.</strong><p class="a-help">Tracking is active on every public page. Numbers appear here as people browse the site (your own visits while signed in are not counted).</p></div>
+    </div>
+  )}
+
+  <section class="an-kpis" aria-label="Key figures">
+    {kpis.map((k) => (
+      <article class="an-kpi">
+        <header><span class="an-kpi__icon" style={`--c:${k.color}`}><Lucide name={k.icon as any} size={16} /></span>{k.label}</header>
+        <strong>{k.value}</strong>
+        <p class:list={['an-delta', `is-${tone(k)}`]}>
+          {tone(k) !== 'flat' && <Lucide name={k.d! > 0 ? 'TrendingUp' : 'TrendingDown'} size={14} />}
+          {deltaText(k)}
+        </p>
+        {k.spark && <Sparkline values={k.spark} color={k.color} label={`${k.label} per day`} />}
+      </article>
+    ))}
+  </section>
+
+  <section class="a-card an-card an-main">
+    <header class="an-card__head"><h2>Visitors and page views</h2><span class="a-help">Per day · hover or use arrow keys for details</span></header>
+    <TrendChart
+      title={`Visitors and page views per day, last ${days} days`}
+      labels={series.map((p) => p.day)}
+      series={[
+        { key: 'v', name: 'Visitors', color: C.teal, values: series.map((p) => p.visitors), area: true },
+        { key: 'p', name: 'Page views', color: C.coral, values: series.map((p) => p.pageviews) },
+      ]}
+    />
+  </section>
+
+  <div class="an-grid">
+    <section class="a-card an-card an-span2">
+      <header class="an-card__head"><h2>Top pages</h2><span class="a-help">{now.sessions} sessions</span></header>
+      {pages.length === 0 ? <p class="a-help">No page views yet.</p> : (
+        <div class="a-scroll">
+          <table class="a-table an-table">
+            <thead><tr><th>Page</th><th class="num">Views</th><th class="num">Visitors</th><th class="num">Avg. time</th></tr></thead>
+            <tbody>
+              {pages.map((p) => (
+                <tr>
+                  <td><div class="an-bar" style={`--w:${(p.views / pages[0]!.views) * 100}%`}><a href={p.path} target="_blank" rel="noopener">{p.title?.replace(/ [-–|] SHAPE.*$/, '') || p.path}</a><span>{p.path}</span></div></td>
+                  <td class="num">{p.views.toLocaleString()}</td>
+                  <td class="num">{p.visitors.toLocaleString()}</td>
+                  <td class="num">{p.avgMs ? duration(p.avgMs) : '—'}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </section>
+
+    <section class="a-card an-card">
+      <header class="an-card__head"><h2>Devices</h2></header>
+      {devices.length === 0 ? <p class="a-help">No data yet.</p> : (
+        <>
+          <div class="an-stack" role="img" aria-label={devices.map((d) => `${d.label} ${pct(d.visitors, deviceTotal)}`).join(', ')}>
+            {devices.map((d) => <span style={`--w:${(d.visitors / deviceTotal) * 100}%;--c:${deviceColor[d.label] ?? C.violet}`}></span>)}
+          </div>
+          <ul class="an-legend">
+            {devices.map((d) => <li><i style={`--c:${deviceColor[d.label] ?? C.violet}`}></i>{d.label}<b>{pct(d.visitors, deviceTotal)}</b><span>{d.visitors.toLocaleString()}</span></li>)}
+          </ul>
+        </>
+      )}
+      <h3 class="an-sub">Browsers</h3>
+      <ul class="an-list">{browsers.map((b) => <li style={`--w:${(b.visitors / share(browsers)) * 100}%`}><span>{b.label}</span><b>{b.visitors}</b></li>)}</ul>
+      <h3 class="an-sub">Operating systems</h3>
+      <ul class="an-list">{systems.map((b) => <li style={`--w:${(b.visitors / share(systems)) * 100}%`}><span>{b.label}</span><b>{b.visitors}</b></li>)}</ul>
+    </section>
+
+    <section class="a-card an-card">
+      <header class="an-card__head"><h2>Where visitors come from</h2></header>
+      <ul class="an-list">{refs.length ? refs.map((r) => <li style={`--w:${(r.visitors / share(refs)) * 100}%`}><span>{r.label}</span><b>{r.visitors}</b></li>) : <li class="a-help">No data yet.</li>}</ul>
+      {campaigns.length > 0 && (<>
+        <h3 class="an-sub">Campaigns (UTM)</h3>
+        <ul class="an-list">{campaigns.map((r) => <li style={`--w:${(r.visitors / share(campaigns)) * 100}%`}><span>{r.label}</span><b>{r.visitors}</b></li>)}</ul>
+      </>)}
+      <h3 class="an-sub">Languages</h3>
+      <ul class="an-list">{langs.map((r) => <li style={`--w:${(r.visitors / share(langs)) * 100}%`}><span>{r.label}</span><b>{r.visitors}</b></li>)}</ul>
+    </section>
+
+    <section class="a-card an-card">
+      <header class="an-card__head"><h2>Most clicked</h2><span class="a-help">Links and buttons on the site</span></header>
+      <ol class="an-rank">
+        {clicks.length ? clicks.map((c) => <li><span><strong>{c.label ?? '(no label)'}</strong><em>{c.target ?? ''}</em></span><b>{c.clicks}</b></li>) : <li class="a-help">No clicks yet.</li>}
+      </ol>
+    </section>
+
+    <section class="a-card an-card">
+      <header class="an-card__head"><h2>Downloads, contacts and outbound links</h2></header>
+      <ol class="an-rank">
+        {exits.length ? exits.map((c) => (
+          <li><span><strong><span class={`an-tag an-tag--${c.type}`}>{c.type === 'download' ? 'Download' : c.type === 'contact' ? 'Contact' : 'Outbound'}</span>{c.label ?? '(no label)'}</strong><em>{c.target ?? ''}</em></span><b>{c.clicks}</b></li>
+        )) : <li class="a-help">None yet.</li>}
+      </ol>
+    </section>
+
+    <section class="a-card an-card">
+      <header class="an-card__head"><h2>Site searches</h2><span class="a-help">What visitors look for</span></header>
+      <ol class="an-rank">
+        {searches.length ? searches.map((s) => <li><span><strong>“{s.term}”</strong>{s.zero > 0 && <em class="an-warn">{s.zero} with no results</em>}</span><b>{s.searches}</b></li>) : <li class="a-help">No searches yet.</li>}
+      </ol>
+    </section>
+
+    <section class="a-card an-card">
+      <header class="an-card__head"><h2>Content gaps</h2><span class="a-help">Searches with no results and broken links</span></header>
+      <h3 class="an-sub">Searches that found nothing</h3>
+      <ol class="an-rank">{zero.length ? zero.map((s) => <li><span><strong>“{s.term}”</strong></span><b>{s.searches}</b></li>) : <li class="a-help">None — every search found something.</li>}</ol>
+      <h3 class="an-sub">Pages not found (404)</h3>
+      <ol class="an-rank">{missing.length ? missing.map((m) => <li><span><code>{m.path}</code></span><b>{m.hits}</b></li>) : <li class="a-help">No broken links visited.</li>}</ol>
+      {missing.length > 0 && <a class="a-btn a-btn--ghost a-btn--sm" href="/admin/content/redirects">Add a redirect</a>}
+    </section>
+
+    <section class="a-card an-card an-span2">
+      <header class="an-card__head"><h2>When people visit</h2><span class="a-help">Page views by day and hour, East Africa Time</span></header>
+      <div class="a-scroll">
+        <table class="an-heat" aria-label="Page views by weekday and hour">
+          <thead><tr><th></th>{Array.from({ length: 24 }, (_, h) => <th scope="col">{h % 3 === 0 ? String(h).padStart(2, '0') : ''}</th>)}</tr></thead>
+          <tbody>
+            {heat.map((row, d) => (
+              <tr><th scope="row">{weekdays[d]}</th>{row.map((n, h) => <td style={`--a:${n ? 0.12 + (n / heatMax) * 0.88 : 0}`} title={`${weekdays[d]} ${String(h).padStart(2, '0')}:00 — ${n} views`}><span class="sr-only">{n}</span></td>)}</tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      <p class="an-scale"><span>Fewer</span><i></i><span>More</span></p>
+    </section>
+
+    <section class="a-card an-card">
+      <header class="an-card__head"><h2>Active right now</h2><span class="a-help">Last 5 minutes</span></header>
+      <ol class="an-rank">{live.pages.length ? live.pages.map((p) => <li><span><code>{p.path}</code></span><b>{p.visitors}</b></li>) : <li class="a-help">Nobody is browsing at the moment.</li>}</ol>
+      <p class="a-help an-privacy"><Lucide name="ShieldCheck" size={14} /> No cookies, no stored IP addresses. Visitor counts use a hash that changes daily, so people cannot be identified or followed across days. Data is kept for 400 days.</p>
+    </section>
+  </div>
+  <script>import '../../scripts/admin-charts';</script>
+</Admin>

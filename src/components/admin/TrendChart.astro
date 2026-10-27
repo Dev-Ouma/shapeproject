@@ -1,0 +1,60 @@
+---
+// Smooth multi-series trend chart on one count axis, with a hover crosshair (admin-charts.ts) and a table view.
+import { smoothPath, niceTicks, compact } from '../../lib/charts';
+interface Series { key: string; name: string; color: string; values: number[]; area?: boolean }
+interface Props { labels: string[]; series: Series[]; title: string; height?: number }
+const { labels, series, title, height = 260 } = Astro.props;
+const W = 760, H = height, L = 44, R = 16, T = 14, B = 30;
+const max = Math.max(1, ...series.flatMap((s) => s.values));
+const ticks = niceTicks(max);
+const top = ticks.at(-1)!;
+const n = labels.length;
+const x = (i: number) => L + (n <= 1 ? (W - L - R) / 2 : (i * (W - L - R)) / (n - 1));
+const y = (v: number) => T + (H - T - B) * (1 - v / top);
+const paths = series.map((s) => {
+  const pts = s.values.map((v, i): [number, number] => [x(i), y(v)]);
+  const line = smoothPath(pts);
+  return { ...s, line, area: s.area && pts.length ? `${line}L${x(n - 1)},${y(0)}L${x(0)},${y(0)}Z` : '' };
+});
+const fmt = (d: string) => new Date(d + 'T00:00:00Z').toLocaleDateString('en-GB', { day: 'numeric', month: 'short', timeZone: 'UTC' });
+const every = Math.max(1, Math.ceil(n / 7));
+// Evenly spaced date labels; the last day is always labelled, so drop a regular label that would crowd it.
+const xLabels = labels.map((d, i) => ({ i, d })).filter(({ i }) => (i % every === 0 && n - 1 - i >= Math.max(2, every * 0.75)) || i === n - 1);
+const uid = Math.random().toString(36).slice(2, 8);
+const data = JSON.stringify({ labels: labels.map(fmt), x: labels.map((_, i) => x(i)), w: W, series: series.map((s) => ({ name: s.name, color: s.color, values: s.values, y: s.values.map(y) })) });
+---
+<figure class="trend" data-trend={data}>
+  <figcaption class="trend__legend">
+    {series.map((s) => <span><i style={`--c:${s.color}`}></i>{s.name}</span>)}
+  </figcaption>
+  <div class="trend__plot">
+    <svg viewBox={`0 0 ${W} ${H}`} role="img" aria-label={title}>
+      <defs>
+        {paths.filter((p) => p.area).map((p) => (
+          <linearGradient id={`ta${uid}${p.key}`} x1="0" x2="0" y1="0" y2="1"><stop offset="0" stop-color={p.color} stop-opacity="0.2" /><stop offset="1" stop-color={p.color} stop-opacity="0.01" /></linearGradient>
+        ))}
+      </defs>
+      {ticks.map((t) => (
+        <g class="trend__grid"><line x1={L} x2={W - R} y1={y(t)} y2={y(t)} /><text x={L - 8} y={y(t) + 4} text-anchor="end">{compact(t)}</text></g>
+      ))}
+      {xLabels.map(({ i, d }) => <text class="trend__x" x={x(i)} y={H - 8} text-anchor={i === 0 ? 'start' : i === n - 1 ? 'end' : 'middle'}>{fmt(d)}</text>)}
+      {paths.map((p) => p.area && <path d={p.area} fill={`url(#ta${uid}${p.key})`} />)}
+      {paths.map((p) => <path class="trend__line" d={p.line} stroke={p.color} />)}
+      <g class="trend__hover" data-hover hidden>
+        <line data-cross y1={T} y2={H - B} />
+        {series.map((s) => <circle data-dot r="5" fill={s.color} />)}
+      </g>
+      <rect class="trend__hit" data-hit x={L} y={T} width={W - L - R} height={H - T - B} />
+    </svg>
+    <div class="trend__tip" data-tip role="status" hidden></div>
+  </div>
+  <details class="trend__table">
+    <summary>Show as table</summary>
+    <div class="a-scroll">
+      <table class="a-table">
+        <thead><tr><th>Date</th>{series.map((s) => <th class="num">{s.name}</th>)}</tr></thead>
+        <tbody>{labels.map((d, i) => <tr><td>{fmt(d)}</td>{series.map((s) => <td class="num">{s.values[i]}</td>)}</tr>)}</tbody>
+      </table>
+    </div>
+  </details>
+</figure>

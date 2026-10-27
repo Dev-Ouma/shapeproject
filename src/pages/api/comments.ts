@@ -1,4 +1,5 @@
 import type { APIRoute } from 'astro';
+import { clientIp } from '../../lib/analytics';
 import { addComment, throttled } from '../../lib/engagement';
 import { loadSite } from '../../lib/content';
 import { notify } from '../../lib/mail';
@@ -11,7 +12,7 @@ export const POST: APIRoute = async ({ request, clientAddress, redirect }) => {
   const back = (state: string) => redirect(`/news/${slug}/?comment=${state}#respond`, 303);
   // Honeypot: real visitors never fill this hidden field.
   if (String(form.get('website_hp') ?? '')) return back('pending');
-  if (throttled(clientAddress)) return new Response('Too many requests', { status: 429 });
+  if (throttled(clientIp(request, clientAddress))) return new Response('Too many requests', { status: 429 });
   const r = addComment({
     post: slug,
     author: String(form.get('author') ?? ''),

@@ -7,6 +7,9 @@ import { listComments, listMessages, countPendingComments, countUnreadMessages }
 import { recentAudit, can } from '../../lib/auth';
 import { listMedia } from '../../lib/media';
 import { postState } from '../../lib/admin';
+import TrendChart from '../../components/admin/TrendChart.astro';
+import { rangeFor, summary, daily, liveVisitors, topPages } from '../../lib/analytics';
+import { compact, delta } from '../../lib/charts';
 
 const posts = listEntries('posts', { includeDrafts: true });
 const drafts = posts.filter((p) => postState(p) !== 'published').length;
@@ -17,6 +20,13 @@ const pendingComments = listComments('pending').slice(0, 5);
 const messages = listMessages('inbox').slice(0, 5);
 const activity = can(Astro.locals.user, 'admin') ? recentAudit(8) : [];
 const postsC = getCollection('posts')!;
+const week = rangeFor(14);
+const traffic = summary(week.cur);
+const trafficPrev = summary(week.prev);
+const trafficDays = daily(week.cur);
+const live = liveVisitors();
+const hotPage = topPages(week.cur, 1)[0];
+const change = delta(traffic.visitors, trafficPrev.visitors);
 const quick = [
   { href: '/admin/content/posts/new', icon: 'PenLine', label: 'Write a news post' },
   { href: '/admin/content/events/new', icon: 'CalendarPlus', label: 'Add an event' },
@@ -35,6 +45,27 @@ const quick = [
     <a class="a-stat" href="/admin/content/events"><strong>{listEntries('events').length}</strong><span>Events</span></a>
     <a class="a-stat" href="/admin/media"><strong>{listMedia({ limit: 1000 }).length}</strong><span>Uploaded files</span></a>
   </div>
+  <section class="a-card an-card an-dash" style="margin-bottom:18px">
+    <header class="an-card__head">
+      <h2>Website traffic · last 14 days</h2>
+      <a class="a-btn a-btn--ghost a-btn--sm" href="/admin/analytics"><Lucide name="ChartSpline" size={15} /> Full analytics</a>
+    </header>
+    <div class="an-dash__facts">
+      <p><strong>{compact(traffic.visitors)}</strong> visitors{change !== null && <span class:list={['an-delta', change >= 0 ? 'is-up' : 'is-down']}>{change >= 0 ? '+' : ''}{Math.round(change * 100)}%</span>}</p>
+      <p><strong>{compact(traffic.pageviews)}</strong> page views</p>
+      <p><strong>{live.visitors}</strong> live now</p>
+      {hotPage && <p class="an-dash__hot">Top page <a href={hotPage.path} target="_blank" rel="noopener">{hotPage.path}</a></p>}
+    </div>
+    <TrendChart
+      title="Visitors and page views per day, last 14 days"
+      height={190}
+      labels={trafficDays.map((d) => d.day)}
+      series={[
+        { key: 'v', name: 'Visitors', color: '#008ba3', values: trafficDays.map((d) => d.visitors), area: true },
+        { key: 'p', name: 'Page views', color: '#e8693a', values: trafficDays.map((d) => d.pageviews) },
+      ]}
+    />
+  </section>
   <div class="a-card" style="margin-bottom:18px">
     <h3>Quick actions</h3>
     <div style="display:flex;flex-wrap:wrap;gap:8px">
@@ -61,4 +92,5 @@ const quick = [
       </div>
     )}
   </div>
+  <script>import '../../scripts/admin-charts';</script>
 </Admin>

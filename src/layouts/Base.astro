@@ -195,6 +195,7 @@ const tel = contact.phone.replace(/[^+\d]/g, '');
 
     <script>
       import '../scripts/motion';
+      import '../scripts/analytics';
       const toggle = document.querySelector<HTMLButtonElement>('[data-nav-toggle]');
       const nav = document.querySelector<HTMLElement>('[data-nav]');
       toggle?.addEventListener('click', () => {
@@ -219,10 +220,21 @@ const tel = contact.phone.replace(/[^+\d]/g, '');
       dialog?.addEventListener('click', (e) => {
         if (e.target === dialog) dialog.close();
       });
+      let searchTimer: number | undefined;
+      let lastSearch = '';
+      const reportSearch = () => {
+        const q = input?.value.trim().toLowerCase() ?? '';
+        if (q.length < 2 || q === lastSearch) return;
+        lastSearch = q;
+        dispatchEvent(new CustomEvent('shape:search', { detail: { q, results: results.filter((li) => !li.hidden).length } }));
+      };
       input?.addEventListener('input', () => {
         const q = input.value.trim().toLowerCase();
         results.forEach((li) => (li.hidden = !!q && !li.textContent!.toLowerCase().includes(q)));
+        clearTimeout(searchTimer);
+        searchTimer = window.setTimeout(reportSearch, 1200);
       });
+      dialog?.addEventListener('close', reportSearch);
     </script>
   </body>
 </html>

@@ -34,7 +34,8 @@ const active = (href: string) => (href === '/admin' ? path === '/admin' || path 
   </head>
   <body class="admin">
     <div class="a-shell">
-      <aside class="a-side" data-side aria-label="Admin navigation">
+      <aside class="a-side" id="admin-side" data-side aria-label="Admin navigation">
+        <button class="a-side__close" type="button" data-side-close aria-label="Close menu"><Lucide name="X" size={18} /></button>
         <a class="a-brand" href="/admin">
           <img src="/images/cropped-SHAPE-final-Logo-192x192.jpeg" alt="" />
           <div><strong>SHAPE CMS</strong><span>Content management</span></div>
@@ -54,6 +55,7 @@ const active = (href: string) => (href === '/admin' ? path === '/admin' || path 
             );
           })}
           <h4>Engagement</h4>
+          <a href="/admin/analytics" title="Analytics" class:list={{ 'is-active': active('/admin/analytics') }}><Lucide name="ChartSpline" size={17} /> <span class="a-nav__t">Analytics</span></a>
           <a href="/admin/comments" title="Comments" class:list={{ 'is-active': active('/admin/comments') }}><Lucide name="MessageSquare" size={17} /> <span class="a-nav__t">Comments</span> {pending > 0 && <span class="a-badge">{pending}</span>}</a>
           <a href="/admin/messages" title="Inbox" class:list={{ 'is-active': active('/admin/messages') }}><Lucide name="Inbox" size={17} /> <span class="a-nav__t">Inbox</span> {unread > 0 && <span class="a-badge">{unread}</span>}</a>
           <h4>Tools</h4>
@@ -64,11 +66,11 @@ const active = (href: string) => (href === '/admin' ? path === '/admin' || path 
           <a href="/admin/account" title="My account" class:list={{ 'is-active': active('/admin/account') }}><Lucide name="KeyRound" size={17} /> <span class="a-nav__t">My account</span></a>
         </nav>
       </aside>
+      <div class="a-scrim" data-scrim hidden></div>
       <div class="a-main">
         <header class="a-top">
           <div style="display:flex;align-items:center;gap:10px">
-            <button class="a-btn a-btn--ghost a-btn--sm a-menu-btn" type="button" data-menu aria-label="Open menu"><Lucide name="Menu" size={16} /></button>
-            <button class="a-btn a-btn--ghost a-btn--sm a-collapse-btn" type="button" data-collapse aria-label="Collapse sidebar" aria-expanded="true" title="Collapse sidebar ( [ )"><Lucide name="PanelLeftClose" size={16} class="a-ico-close" /><Lucide name="PanelLeftOpen" size={16} class="a-ico-open" /></button>
+            <button class="a-btn a-btn--ghost a-btn--sm a-collapse-btn" type="button" data-collapse aria-label="Collapse sidebar" aria-expanded="true" title="Toggle sidebar ( [ )" aria-controls="admin-side"><Lucide name="PanelLeftClose" size={16} class="a-ico-close" /><Lucide name="PanelLeftOpen" size={16} class="a-ico-open" /></button>
             <nav class="a-top__crumbs" aria-label="Breadcrumb">
               <a href="/admin">Dashboard</a>
               {crumbs.map((c) => <Fragment> / {c.href ? <a href={c.href}>{c.label}</a> : <span>{c.label}</span>}</Fragment>)}
@@ -92,25 +94,40 @@ const active = (href: string) => (href === '/admin' ? path === '/admin' || path 
         const b = (e.target as HTMLElement).closest<HTMLElement>('[data-confirm]');
         if (b && !confirm(b.dataset.confirm!)) e.preventDefault();
       });
-      const side = document.querySelector('[data-side]');
-      document.querySelector('[data-menu]')?.addEventListener('click', () => side?.classList.toggle('is-open'));
-      side?.addEventListener('click', (e) => { if (e.target === side) side.classList.remove('is-open'); });
-      // Desktop: collapse the sidebar to icons; remembered per browser (admin-boot.js applies it before paint).
+      const side = document.querySelector<HTMLElement>('[data-side]');
       const root = document.documentElement;
-      const collapseBtn = document.querySelector<HTMLButtonElement>('[data-collapse]');
+      const toggleBtn = document.querySelector<HTMLButtonElement>('[data-collapse]');
+      const phone = matchMedia('(max-width: 900px)');
+      // One button: on phones it opens/closes the slide-in menu, on desktop it collapses the sidebar to icons
+      // (remembered per browser; admin-boot.js applies it before paint).
       const syncCollapse = () => {
-        const on = root.classList.contains('a-collapsed');
-        collapseBtn?.setAttribute('aria-expanded', String(!on));
-        collapseBtn?.setAttribute('aria-label', on ? 'Expand sidebar' : 'Collapse sidebar');
+        const open = phone.matches ? !!side?.classList.contains('is-open') : !root.classList.contains('a-collapsed');
+        toggleBtn?.setAttribute('aria-expanded', String(open));
+        toggleBtn?.setAttribute('aria-label', phone.matches ? (open ? 'Close menu' : 'Open menu') : open ? 'Collapse sidebar' : 'Expand sidebar');
+      };
+      const setDrawer = (open: boolean) => {
+        side?.classList.toggle('is-open', open);
+        const scrim = document.querySelector<HTMLElement>('[data-scrim]');
+        if (scrim) scrim.hidden = !open;
+        document.body.classList.toggle('a-drawer-open', open);
+        syncCollapse();
+        if (open) side?.querySelector<HTMLElement>('[data-side-close]')?.focus();
       };
       const toggleCollapse = () => {
+        if (phone.matches) return setDrawer(!side?.classList.contains('is-open'));
         const on = root.classList.toggle('a-collapsed');
         try { localStorage.setItem('shape-admin-collapsed', on ? '1' : '0'); } catch {}
         syncCollapse();
       };
-      collapseBtn?.addEventListener('click', toggleCollapse);
+      toggleBtn?.addEventListener('click', toggleCollapse);
+      document.querySelector('[data-side-close]')?.addEventListener('click', () => { setDrawer(false); toggleBtn?.focus(); });
+      // Tapping the dimmed backdrop or a menu link closes the phone menu.
+      document.querySelector('[data-scrim]')?.addEventListener('click', () => setDrawer(false));
+      side?.addEventListener('click', (e) => { if (phone.matches && (e.target as Element).closest('a')) setDrawer(false); });
+      phone.addEventListener('change', () => setDrawer(false));
       document.addEventListener('keydown', (e) => {
         const t = e.target as HTMLElement;
+        if (e.key === 'Escape' && side?.classList.contains('is-open')) { setDrawer(false); toggleBtn?.focus(); return; }
         if (e.key === '[' && !e.metaKey && !e.ctrlKey && !e.altKey && !t.closest('input, textarea, select, [contenteditable="true"], .ProseMirror')) toggleCollapse();
       });
       syncCollapse();

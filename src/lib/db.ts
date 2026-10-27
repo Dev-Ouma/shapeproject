@@ -119,6 +119,31 @@ const MIGRATIONS: string[] = [
   );
   CREATE INDEX message_replies_msg ON message_replies(message_id);
   `,
+  // 4 — first-party, cookieless analytics (no IPs stored; visitor ids are salted per day and unlinkable)
+  `
+  CREATE TABLE analytics_events (
+    id INTEGER PRIMARY KEY,
+    ts TEXT NOT NULL DEFAULT (strftime('%Y-%m-%d %H:%M:%S', 'now')),
+    day TEXT NOT NULL,
+    type TEXT NOT NULL,
+    path TEXT NOT NULL,
+    title TEXT,
+    target TEXT,
+    label TEXT,
+    ref TEXT,
+    utm TEXT,
+    visitor TEXT NOT NULL,
+    session TEXT NOT NULL,
+    device TEXT,
+    browser TEXT,
+    os TEXT,
+    lang TEXT,
+    value INTEGER
+  );
+  CREATE INDEX analytics_day_type ON analytics_events(day, type);
+  CREATE INDEX analytics_visitor_ts ON analytics_events(visitor, ts);
+  CREATE TABLE analytics_salts (day TEXT PRIMARY KEY, salt TEXT NOT NULL);
+  `,
 ];
 
 let db: DatabaseSync | undefined;

@@ -1,5 +1,6 @@
 ---
 import AuthShell from '../../components/admin/AuthShell.astro';
+import { clientIp } from '../../lib/analytics';
 import { login, SESSION_COOKIE, sessionMaxAge, audit, countUsers } from '../../lib/auth';
 
 const next = Astro.url.searchParams.get('next');
@@ -11,7 +12,7 @@ let email = '';
 if (Astro.request.method === 'POST') {
   const form = await Astro.request.formData();
   email = String(form.get('email') ?? '');
-  const r = login(email, String(form.get('password') ?? ''), { ip: Astro.clientAddress, userAgent: Astro.request.headers.get('user-agent') ?? '' });
+  const r = login(email, String(form.get('password') ?? ''), { ip: clientIp(Astro.request, Astro.clientAddress), userAgent: Astro.request.headers.get('user-agent') ?? '' });
   if (r.ok) {
     Astro.cookies.set(SESSION_COOKIE, r.token, { path: '/', httpOnly: true, sameSite: 'lax', secure: Astro.url.protocol === 'https:', maxAge: sessionMaxAge });
     audit(r.user.id, r.needsOtp ? 'login.password-ok' : 'login');

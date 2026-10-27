@@ -431,8 +431,83 @@ test('sidebar collapses to icons, persists across pages, and toggles with [', as
   await expect(page.locator('html')).not.toHaveClass(/a-collapsed/);
   await page.fill('.ibx__search input', '[');
   await expect(page.locator('html')).not.toHaveClass(/a-collapsed/);
+  // Phones: the same button opens the slide-in menu; the close button, backdrop, Escape and links close it.
   await page.setViewportSize({ width: 390, height: 800 });
-  await expect(page.locator('[data-collapse]')).toBeHidden();
+  const btn = page.locator('[data-collapse]');
+  await expect(btn).toBeVisible();
+  await expect(page.locator('[data-menu]')).toHaveCount(0);
+  await btn.click();
+  await expect(side).toHaveClass(/is-open/);
+  await expect(btn).toHaveAttribute('aria-expanded', 'true');
+  await page.click('[data-side-close]');
+  await expect(side).not.toHaveClass(/is-open/);
+  await btn.click();
+  await page.locator('[data-scrim]').click({ position: { x: 370, y: 400 } });
+  await expect(side).not.toHaveClass(/is-open/);
+  await btn.click();
+  await page.keyboard.press('Escape');
+  await expect(side).not.toHaveClass(/is-open/);
+  await btn.click();
+  await page.locator('.a-nav a[title="Analytics"]').click();
+  await expect(page).toHaveURL(/\/admin\/analytics/);
+  await expect(side).not.toHaveClass(/is-open/);
+});
+
+test('analytics records visits, clicks and searches silently and shows them in the CMS', async ({ page, browser }) => {
+  const visitor = await browser.newContext({
+    userAgent: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0 Safari/537.36',
+  });
+  const v = await visitor.newPage();
+  const beacons: string[] = [];
+  v.on('request', (r) => { if (r.url().endsWith('/api/collect')) beacons.push(r.postData() ?? ''); });
+  await v.goto('/');
+  await v.goto('/search/?s=zzqx-nothing');
+  await v.waitForTimeout(300);
+  await v.goto('/events/');
+  await v.locator('a[href="/contact/"]').first().click();
+  await v.waitForURL(/contact/);
+  await v.goto('/no-such-page-for-analytics/');
+  await v.waitForTimeout(500);
+  // Nothing is stored on the visitor's device.
+  expect(await visitor.cookies()).toEqual([]);
+  // (Only the preloader's "already seen" flag exists; analytics adds nothing.)
+  expect(await v.evaluate(() => [...Object.keys(localStorage), ...Object.keys(sessionStorage)])).toEqual(['shape-seen']);
+  expect(beacons.length).toBeGreaterThan(3);
+  await visitor.close();
+
+  await login(page);
+  await page.goto('/admin/analytics?days=7');
+  await expect(page.locator('.an-kpi', { hasText: 'Visitors' }).locator('strong')).toHaveText('1');
+  await expect(page.locator('.an-kpi', { hasText: 'Page views' }).locator('strong')).not.toHaveText('0');
+  await expect(page.locator('.an-card', { hasText: 'Top pages' })).toContainText('/events/');
+  await expect(page.locator('.an-card', { hasText: 'Content gaps' })).toContainText('zzqx-nothing');
+  await expect(page.locator('.an-card', { hasText: 'Content gaps' })).toContainText('/no-such-page-for-analytics/');
+  await expect(page.locator('.an-card', { hasText: 'Most clicked' })).toContainText('/contact/');
+  // Hover crosshair and keyboard access on the trend chart.
+  const chart = page.locator('.an-main .trend svg');
+  await chart.hover();
+  await expect(page.locator('.an-main [data-tip]')).toBeVisible();
+  await chart.focus();
+  await page.keyboard.press('ArrowLeft');
+  await expect(page.locator('.an-main [data-tip]')).toContainText('Visitors');
+  // Staff browsing while signed in is not counted.
+  const before = await page.locator('.an-kpi', { hasText: 'Page views' }).locator('strong').innerText();
+  await page.goto('/about/');
+  await page.waitForTimeout(400);
+  await page.goto('/admin/analytics?days=7');
+  await expect(page.locator('.an-kpi', { hasText: 'Page views' }).locator('strong')).toHaveText(before);
+  const csv = await page.request.get('/admin/api/analytics.csv?days=7');
+  expect(csv.headers()['content-type']).toContain('text/csv');
+  expect(await csv.text()).toContain('pageview');
+  await page.goto('/admin');
+  await expect(page.locator('.an-dash')).toContainText('Website traffic');
+});
+
+test('analytics collector ignores cross-site posts and the CSV needs a login', async ({ request }) => {
+  const r = await request.post('/api/collect', { data: [{ type: 'pageview', path: '/' }], headers: { 'sec-fetch-site': 'cross-site' } });
+  expect(r.status()).toBe(204);
+  const csv = await request.get('/admin/api/analytics.csv', { maxRedirects: 0 });
+  expect([302, 303, 401]).toContain(csv.status());
 });
 
 test('logout ends the session', async ({ page }) => {

@@ -1,0 +1,16 @@
+---
+import { smoothPath } from '../../lib/charts';
+interface Props { values: number[]; color: string; label: string }
+const { values, color, label } = Astro.props;
+const W = 120, H = 36, P = 3;
+const max = Math.max(1, ...values);
+const pts = values.map((v, i): [number, number] => [P + (i * (W - 2 * P)) / Math.max(1, values.length - 1), H - P - (v / max) * (H - 2 * P)]);
+const line = smoothPath(pts);
+const area = pts.length ? `${line}L${pts.at(-1)![0]},${H}L${pts[0]![0]},${H}Z` : '';
+const id = `sg${Math.random().toString(36).slice(2, 8)}`;
+---
+<svg class="spark" viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none" role="img" aria-label={label}>
+  <defs><linearGradient id={id} x1="0" x2="0" y1="0" y2="1"><stop offset="0" stop-color={color} stop-opacity="0.22" /><stop offset="1" stop-color={color} stop-opacity="0" /></linearGradient></defs>
+  <path d={area} fill={`url(#${id})`} />
+  <path d={line} fill="none" stroke={color} stroke-width="2" stroke-linecap="round" stroke-linejoin="round" vector-effect="non-scaling-stroke" />
+</svg>
