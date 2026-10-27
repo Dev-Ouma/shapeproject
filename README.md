@@ -4,7 +4,6 @@ The public website and content management system of **SHAPE** (Smart City Higher
 
 - Live site: <https://shapeproject.ouk.ac.ke>
 - CMS: <https://shapeproject.ouk.ac.ke/admin>
-- Original WordPress site it replaces: <https://shapeproject.org>
 
 The site is an [Astro 5](https://astro.build) server-rendered app. Every page reads its content from a SQLite database that editors manage through the built-in CMS at `/admin`. There is no external CMS, database server or third-party analytics.
 
@@ -48,7 +47,7 @@ npm install
 BOOTSTRAP_ADMIN_EMAIL=you@example.org BOOTSTRAP_ADMIN_PASSWORD='a-long-pass-123' npm run dev
 ```
 
-Open <http://localhost:4321> for the site and <http://localhost:4321/admin> for the CMS. On first run the database is created at `var/shape.db` and seeded with the original site's content. The `BOOTSTRAP_ADMIN_*` variables create the first admin only when no users exist.
+Open <http://localhost:4321> for the site and <http://localhost:4321/admin> for the CMS. On first run the database is created at `var/shape.db` and seeded with the project's content. The `BOOTSTRAP_ADMIN_*` variables create the first admin only when no users exist.
 
 You can also create or reset an admin from the shell:
 
@@ -87,10 +86,10 @@ src/
     seo.ts             Structured data and meta helpers
   scripts/           Client-side scripts (motion, analytics beacon, admin charts, editor)
   styles/            global.css (site), admin.css (CMS), book.css (Executive Brief)
-  seed/              Initial content imported from the WordPress site
+  seed/              Initial site content
   middleware.ts      Security headers (CSP), sign-in and role checks, maintenance, lockdown, redirects
 public/              Static files (images, downloads, boot scripts)
-data/                WordPress REST API export used for the original migration
+data/                Source content used to seed the database
 tests/unit/          Vitest tests
 tests/e2e/           Playwright tests
 deploy/              Server setup, deploy, backup, Nginx and systemd files
