@@ -44,7 +44,7 @@ if [ -f /etc/systemd/system/shape.service ]; then
 else
   # Before the systemd unit exists: run in the background as this user (tracked by pid file).
   if [ -f "$APP/shared/app.pid" ]; then kill "$(cat "$APP/shared/app.pid")" 2>/dev/null || true; fi
-  for pid in $(pgrep -u "$(id -u)" -f 'dist/server/entry.mjs'); do
+  for pid in $(pgrep -u "$(id -u)" -f '^node .*dist/server/entry\.mjs'); do
     case "$(readlink -f /proc/$pid/cwd)" in "$APP"/*) kill "$pid" 2>/dev/null || true ;; esac
   done
   sleep 1
@@ -52,12 +52,16 @@ else
 fi
 
 for i in $(seq 1 30); do curl -fsS -o /dev/null "http://127.0.0.1:${PORT:-4321}/" && break; sleep 1; done
-LIVE=$(pgrep -u "$(id -u)" -f 'dist/server/entry.mjs' | while read -r p; do readlink -f /proc/$p/cwd; done | sort -u)
+# Anchor on the node binary so shells whose command line merely mentions the path do not match.
+LIVE=$(pgrep -u "$(id -u)" -f '^node .*dist/server/entry\.mjs' | while read -r p; do readlink -f /proc/$p/cwd; done | sort -u)
 if curl -fsS -o /dev/null "http://127.0.0.1:${PORT:-4321}/" && [ "$LIVE" = "$REL" ]; then
   echo "Release $SHA is live."
   ls -1dt "$APP"/releases/* | tail -n +6 | xargs -r rm -rf
 else
   echo "Health check failed; rolling back to $PREV" >&2
-  [ -n "$PREV" ] && ln -sfn "$PREV" "$APP/current"
+  if [ -n "$PREV" ]; then
+    ln -sfn "$PREV" "$APP/current"
+    [ -f /etc/systemd/system/shape.service ] && sudo -n systemctl restart shape 2>/dev/null
+  fi
   exit 1
 fi
