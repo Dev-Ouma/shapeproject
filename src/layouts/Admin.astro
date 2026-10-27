@@ -4,6 +4,9 @@ import Lucide from '../components/Lucide.astro';
 import { collections } from '../lib/schema';
 import { can } from '../lib/auth';
 import { countPendingComments, countUnreadMessages } from '../lib/engagement';
+import { getMaintenance, getLockdown } from '../lib/system';
+import { currentRelease } from '../lib/sysinfo';
+import { countTrash } from '../lib/trash';
 
 interface Props {
   title: string;
@@ -16,6 +19,10 @@ const isAdmin = can(user, 'admin');
 const groups = ['Site', 'Home', 'About', 'Programme', 'People', 'Library', 'News'] as const;
 const pending = countPendingComments();
 const unread = countUnreadMessages();
+const maintenance = getMaintenance();
+const lockdown = getLockdown();
+const release = currentRelease();
+const binCount = countTrash();
 const active = (href: string) => (href === '/admin' ? path === '/admin' || path === '/admin/' : path.startsWith(href));
 ---
 
@@ -61,10 +68,17 @@ const active = (href: string) => (href === '/admin' ? path === '/admin' || path 
           <h4>Tools</h4>
           <a href="/admin/media" title="Media library" class:list={{ 'is-active': active('/admin/media') }}><Lucide name="Image" size={17} /> <span class="a-nav__t">Media library</span></a>
           <a href="/admin/book" title="Project Book PDF" class:list={{ 'is-active': active('/admin/book') }}><Lucide name="BookOpen" size={17} /> <span class="a-nav__t">Project Book PDF</span></a>
-          {isAdmin && <a href="/admin/users" title="Users" class:list={{ 'is-active': active('/admin/users') }}><Lucide name="UserCog" size={17} /> <span class="a-nav__t">Users</span></a>}
-          {isAdmin && <a href="/admin/audit" title="Activity log" class:list={{ 'is-active': active('/admin/audit') }}><Lucide name="History" size={17} /> <span class="a-nav__t">Activity log</span></a>}
           <a href="/admin/account" title="My account" class:list={{ 'is-active': active('/admin/account') }}><Lucide name="KeyRound" size={17} /> <span class="a-nav__t">My account</span></a>
+          <h4>Administration</h4>
+          {isAdmin && <a href="/admin/system" title="Overview" class:list={{ 'is-active': path === '/admin/system' || path === '/admin/system/' }}><Lucide name="Gauge" size={17} /> <span class="a-nav__t">Overview</span></a>}
+          {isAdmin && <a href="/admin/audit" title="Audit trail" class:list={{ 'is-active': active('/admin/audit') }}><Lucide name="ScrollText" size={17} /> <span class="a-nav__t">Audit trail</span></a>}
+          <a href="/admin/trash" title="Recycle bin" class:list={{ 'is-active': active('/admin/trash') }}><Lucide name="Recycle" size={17} /> <span class="a-nav__t">Recycle bin</span> {binCount > 0 && <span class="a-badge a-badge--muted">{binCount}</span>}</a>
+          {isAdmin && <a href="/admin/content/releases" title="Release notes" class:list={{ 'is-active': active('/admin/content/releases') }}><Lucide name="Rocket" size={17} /> <span class="a-nav__t">Release notes</span></a>}
+          <a href="/admin/releases" title="What’s new" class:list={{ 'is-active': active('/admin/releases') }}><Lucide name="Sparkles" size={17} /> <span class="a-nav__t">What’s new</span></a>
+          {isAdmin && <a href="/admin/system/modes" title="Maintenance & lockdown" class:list={{ 'is-active': active('/admin/system/modes') }}><Lucide name="ShieldAlert" size={17} /> <span class="a-nav__t">Maintenance & lockdown</span> {(maintenance.on || lockdown.on) && <span class="a-badge">!</span>}</a>}
+          {isAdmin && <a href="/admin/users" title="Users" class:list={{ 'is-active': active('/admin/users') }}><Lucide name="UserCog" size={17} /> <span class="a-nav__t">Users</span></a>}
         </nav>
+        {release && <a class="a-version" href={`/admin/releases#v${release.version}`} title={`Version ${release.version}: ${release.title}`}><Lucide name="Rocket" size={14} /> <span class="a-nav__t">SHAPE CMS v{release.version}</span></a>}
       </aside>
       <div class="a-scrim" data-scrim hidden></div>
       <div class="a-main">
@@ -82,6 +96,12 @@ const active = (href: string) => (href === '/admin' ? path === '/admin' || path 
             <form method="post" action="/admin/logout"><button class="a-btn a-btn--ghost a-btn--sm" type="submit"><Lucide name="LogOut" size={15} /> Log out</button></form>
           </div>
         </header>
+        {lockdown.on && (
+          <div class="a-banner a-banner--danger" role="status"><Lucide name="Lock" size={16} /> <span><strong>Lockdown is active.</strong> {lockdown.freeze ? 'The CMS is read-only. ' : 'Only admins can sign in. '}Public comments and contact messages are paused.</span>{isAdmin && <a href="/admin/system/modes">Manage</a>}</div>
+        )}
+        {maintenance.on && (
+          <div class="a-banner a-banner--warn" role="status"><Lucide name="Construction" size={16} /> <span><strong>Maintenance mode is on.</strong> Visitors see the maintenance page; signed-in staff can still browse the site.</span>{isAdmin && <a href="/admin/system/modes">Manage</a>}</div>
+        )}
         <main class="a-content" id="main">
           <slot />
         </main>

@@ -1,5 +1,6 @@
 ---
 import Admin from '../../layouts/Admin.astro';
+import Lucide from '../../components/Lucide.astro';
 import { resetOtp, otpEnabled } from '../../lib/otp';
 import { listUsers, createInvite, updateUser, listPendingInvites, countActiveAdmins, getUser, audit, findUserByEmail, type Role } from '../../lib/auth';
 
@@ -38,52 +39,77 @@ if (Astro.request.method === 'POST') {
 }
 const users = listUsers();
 const invites = listPendingInvites();
+const otpOn = new Map(users.map((u) => [u.id, otpEnabled(u.id)]));
+const active = users.filter((u) => !u.disabled);
+const summary = [
+  { label: 'Active users', value: active.length, icon: 'Users' },
+  { label: 'Admins', value: active.filter((u) => u.role === 'admin').length, icon: 'ShieldCheck' },
+  { label: 'Editors', value: active.filter((u) => u.role === 'editor').length, icon: 'PenLine' },
+  { label: 'Two-step on', value: `${users.filter((u) => otpOn.get(u.id)).length}/${users.length}`, icon: 'KeyRound' },
+];
+const initials = (n: string) => n.split(/\s+/).filter(Boolean).slice(0, 2).map((w) => w[0]!.toUpperCase()).join('');
 ---
 
-<Admin title="Users" crumbs={[{ label: 'Users' }]}>
+<Admin title="Users" crumbs={[{ label: 'Administration', href: '/admin/system' }, { label: 'Users' }]}>
   <div class="a-head"><div><h1>Users</h1><p>Admins manage everything. Editors manage content but not users, settings, navigation or redirects.</p></div></div>
-  {Astro.url.searchParams.has('saved') && <p class="a-flash a-flash--ok">Saved.</p>}
+  {Astro.url.searchParams.has('saved') && <p class="a-flash a-flash--ok" role="status">Saved.</p>}
   {error && <p class="a-flash a-flash--err" role="alert">{error}</p>}
   {inviteLink && (
     <div class="a-flash a-flash--ok" role="status">
       Invitation created. Send this link to the person (valid for 7 days, single use):
-      <div style="display:flex;gap:8px;margin-top:8px"><input class="a-input" readonly value={inviteLink} data-invite /><button type="button" class="a-btn a-btn--sm" data-copy-invite>Copy</button></div>
+      <div class="usr-link"><input class="a-input" readonly value={inviteLink} data-invite aria-label="Invitation link" /><button type="button" class="a-btn a-btn--sm" data-copy-invite>Copy</button></div>
     </div>
   )}
-  <div class="a-card" style="margin-bottom:18px">
-    <h3>Invite someone</h3>
-    <form method="post" style="display:grid;grid-template-columns:1fr 1fr 160px auto;gap:10px;align-items:end" class="a-form">
-      <input type="hidden" name="action" value="invite" />
-      <div class="a-field"><label for="iname">Name</label><input id="iname" name="name" required /></div>
-      <div class="a-field"><label for="iemail">Email</label><input id="iemail" type="email" name="email" required /></div>
-      <div class="a-field"><label for="irole">Role</label><select id="irole" name="role"><option value="editor">Editor</option><option value="admin">Admin</option></select></div>
-      <button class="a-btn a-btn--coral" type="submit">Create invite</button>
-    </form>
+  <div class="sys-tiles usr-tiles">
+    {summary.map((t) => (
+      <div class="a-card sys-tile">
+        <span class="sys-tile__ico"><Lucide name={t.icon as any} size={18} /></span>
+        <span class="sys-tile__label">{t.label}</span>
+        <strong>{t.value}</strong>
+      </div>
+    ))}
   </div>
-  <table class="a-table">
-    <thead><tr><th>Name</th><th>Role</th><th>Status</th><th>Two-step</th><th>Last login</th><th></th></tr></thead>
-    <tbody>
-      {users.map((u) => (
-        <tr>
-          <td><strong>{u.name}</strong>{u.id === me.id && <span class="a-help"> (you)</span>}<div class="a-help">{u.email}</div></td>
-          <td><span class="a-role">{u.role}</span></td>
-          <td>{u.disabled ? <span class="a-pill a-pill--spam">disabled</span> : <span class="a-pill a-pill--published">active</span>}</td>
-          <td>{otpEnabled(u.id) ? <span class="a-pill a-pill--published">on</span> : <span class="a-pill a-pill--draft">not set up</span>}</td>
-          <td class="a-help">{u.last_login ?? 'never'}</td>
-          <td>
-            {u.id !== me.id && (
-              <form method="post" style="display:flex;gap:4px;justify-content:flex-end">
-                <input type="hidden" name="id" value={u.id} />
-                {u.role === 'editor' ? <button class="a-btn a-btn--ghost a-btn--sm" name="action" value="admin">Make admin</button> : <button class="a-btn a-btn--ghost a-btn--sm" name="action" value="editor">Make editor</button>}
-                {otpEnabled(u.id) && <button class="a-btn a-btn--ghost a-btn--sm" name="action" value="reset-otp" data-confirm="Reset two-step sign-in? They will set it up again at next login.">Reset 2-step</button>}
-                {u.disabled ? <button class="a-btn a-btn--sm" name="action" value="enable">Enable</button> : <button class="a-btn a-btn--danger a-btn--sm" name="action" value="disable">Disable</button>}
-              </form>
-            )}
-          </td>
-        </tr>
-      ))}
-    </tbody>
-  </table>
+  <section class="a-card usr-invite" aria-labelledby="inv-h">
+    <h3 id="inv-h"><Lucide name="UserPlus" size={17} /> Invite someone</h3>
+    <form method="post" class="usr-invite__form">
+      <input type="hidden" name="action" value="invite" />
+      <div class="a-field"><label for="iname">Name</label><input id="iname" type="text" name="name" required autocomplete="off" /></div>
+      <div class="a-field"><label for="iemail">Email</label><input id="iemail" type="email" name="email" required autocomplete="off" /></div>
+      <div class="a-field"><label for="irole">Role</label><select id="irole" name="role"><option value="editor">Editor</option><option value="admin">Admin</option></select></div>
+      <button class="a-btn a-btn--coral" type="submit"><Lucide name="Send" size={15} /> Create invite</button>
+    </form>
+  </section>
+  <div class="a-table-wrap">
+    <table class="a-table a-table--stack usr-table">
+      <thead><tr><th>Person</th><th>Role</th><th>Status</th><th>Two-step</th><th>Last login (UTC)</th><th><span class="sr-only">Actions</span></th></tr></thead>
+      <tbody>
+        {users.map((u) => (
+          <tr>
+            <td data-label="Person">
+              <div class="usr-who">
+                <span class="usr-av" aria-hidden="true">{initials(u.name)}</span>
+                <span><strong>{u.name}</strong>{u.id === me.id && <span class="a-help"> (you)</span>}<span class="a-help usr-mail">{u.email}</span></span>
+              </div>
+            </td>
+            <td data-label="Role"><span class="a-role">{u.role}</span></td>
+            <td data-label="Status">{u.disabled ? <span class="a-pill a-pill--spam">disabled</span> : <span class="a-pill a-pill--published">active</span>}</td>
+            <td data-label="Two-step">{otpOn.get(u.id) ? <span class="a-pill a-pill--published">on</span> : <span class="a-pill a-pill--draft">not set up</span>}</td>
+            <td data-label="Last login" class="a-help">{u.last_login ?? 'never'}</td>
+            <td class="a-row-actions">
+              {u.id !== me.id && (
+                <form method="post">
+                  <input type="hidden" name="id" value={u.id} />
+                  {u.role === 'editor' ? <button class="a-btn a-btn--ghost a-btn--sm" name="action" value="admin">Make admin</button> : <button class="a-btn a-btn--ghost a-btn--sm" name="action" value="editor">Make editor</button>}
+                  {otpOn.get(u.id) && <button class="a-btn a-btn--ghost a-btn--sm" name="action" value="reset-otp" data-confirm="Reset two-step sign-in? They will set it up again at next login.">Reset 2-step</button>}
+                  {u.disabled ? <button class="a-btn a-btn--sm" name="action" value="enable">Enable</button> : <button class="a-btn a-btn--danger a-btn--sm" name="action" value="disable">Disable</button>}
+                </form>
+              )}
+            </td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
+  </div>
   {invites.length > 0 && (
     <div class="a-card" style="margin-top:18px"><h3>Pending invitations</h3><ul class="a-list">{invites.map((i) => <li><span>{i.name} — {i.email} <span class="a-role">{i.role}</span></span><small>expires {new Date(i.expires_at).toLocaleDateString('en-GB')}</small></li>)}</ul></div>
   )}

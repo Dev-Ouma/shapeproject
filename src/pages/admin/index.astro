@@ -10,6 +10,11 @@ import { postState } from '../../lib/admin';
 import TrendChart from '../../components/admin/TrendChart.astro';
 import { rangeFor, summary, daily, liveVisitors, topPages } from '../../lib/analytics';
 import { compact, delta } from '../../lib/charts';
+import Sparkline from '../../components/admin/Sparkline.astro';
+import { collections } from '../../lib/schema';
+import { loadSite } from '../../lib/content';
+import { wpStatus } from '../../lib/status';
+import { weeklyActivity, weeklyCreated } from '../../lib/audit';
 
 const posts = listEntries('posts', { includeDrafts: true });
 const drafts = posts.filter((p) => postState(p) !== 'published').length;
@@ -27,6 +32,30 @@ const trafficDays = daily(week.cur);
 const live = liveVisitors();
 const hotPage = topPages(week.cur, 1)[0];
 const change = delta(traffic.visitors, trafficPrev.visitors);
+// Content mix: items per list collection, largest first.
+const mix = collections
+  .filter((c) => c.kind === 'list' && c.group !== 'Administration' && (!c.adminOnly || can(Astro.locals.user, 'admin')))
+  .map((c) => ({ c, n: listEntries(c.key, { includeDrafts: true }).length }))
+  .filter((x) => x.n > 0)
+  .sort((a, b) => b.n - a.n)
+  .slice(0, 8);
+const mixMax = Math.max(1, ...mix.map((x) => x.n));
+// Publishing activity per week from the audit trail.
+const created = weeklyActivity(12, '%.create%');
+const updated = weeklyActivity(12, '%.update%');
+const edits12 = created.reduce((s, w) => s + w.n, 0) + updated.reduce((s, w) => s + w.n, 0);
+const engage = [
+  { label: 'Messages', href: '/admin/messages', color: '#008ba3', weeks: weeklyCreated('messages') },
+  { label: 'Comments', href: '/admin/comments', color: '#e8693a', weeks: weeklyCreated('comments') },
+  { label: 'Uploads', href: '/admin/media', color: '#6b5bd6', weeks: weeklyCreated('media') },
+].map((e) => ({ ...e, total: e.weeks.reduce((s, w) => s + w.n, 0), last: e.weeks.at(-1)!.n, prev: e.weeks.at(-2)!.n }));
+// Project timeline.
+const site = loadSite();
+const month = site.currentMonth, months = site.projectMonths;
+const pct = Math.round((month / months) * 100);
+const R = 52, CIRC = 2 * Math.PI * R;
+const wps = site.workPackages.map((w: any) => wpStatus(w, month));
+const wpDone = wps.filter((x) => x === 'done').length, wpActive = wps.filter((x) => x === 'progress').length;
 const quick = [
   { href: '/admin/content/posts/new', icon: 'PenLine', label: 'Write a news post' },
   { href: '/admin/content/events/new', icon: 'CalendarPlus', label: 'Add an event' },
@@ -66,6 +95,60 @@ const quick = [
       ]}
     />
   </section>
+  <div class="dash-grid">
+    <section class="a-card dash-card dash-ring" aria-labelledby="tl-h">
+      <h3 id="tl-h">Project timeline</h3>
+      <div class="dash-ring__wrap">
+        <svg viewBox="0 0 120 120" class="dash-ring__svg" role="img" aria-label={`Month ${month} of ${months}, ${pct}% of the project elapsed`}>
+          <circle cx="60" cy="60" r={R} class="dash-ring__track" />
+          <circle cx="60" cy="60" r={R} class="dash-ring__bar" stroke-dasharray={`${(CIRC * pct) / 100} ${CIRC}`} transform="rotate(-90 60 60)" />
+          <text x="60" y="58" text-anchor="middle" class="dash-ring__big">{pct}%</text>
+          <text x="60" y="76" text-anchor="middle" class="dash-ring__small">elapsed</text>
+        </svg>
+        <ul class="dash-ring__facts">
+          <li><strong>Month {month}</strong> of {months}</li>
+          <li><span class="dash-dot" style="--c:#008ba3"></span>{wpDone} work package{wpDone === 1 ? '' : 's'} done</li>
+          <li><span class="dash-dot" style="--c:#e8693a"></span>{wpActive} in progress</li>
+          <li><span class="dash-dot" style="--c:#6b5bd6"></span>{wps.length - wpDone - wpActive} upcoming</li>
+        </ul>
+      </div>
+    </section>
+    <section class="a-card dash-card" aria-labelledby="mix-h">
+      <h3 id="mix-h">Content mix</h3>
+      <ul class="dash-bars">
+        {mix.map((x) => (
+          <li>
+            <a href={`/admin/content/${x.c.key}`}><span class="dash-bars__label">{x.c.label}</span><span class="dash-bars__n">{x.n}</span></a>
+            <span class="dash-bars__track" aria-hidden="true"><span class="dash-bars__fill" style={`width:${Math.max(3, (x.n / mixMax) * 100)}%`}></span></span>
+          </li>
+        ))}
+      </ul>
+    </section>
+  </div>
+  <section class="a-card an-card dash-card" style="margin-bottom:18px" aria-labelledby="pub-h">
+    <header class="an-card__head">
+      <h2 id="pub-h">Publishing activity · last 12 weeks</h2>
+      <span class="a-help">{edits12} saves</span>
+    </header>
+    <TrendChart
+      title="Items created and updated per week, last 12 weeks"
+      height={170}
+      labels={created.map((w) => w.week)}
+      series={[
+        { key: 'u', name: 'Updated', color: '#008ba3', values: updated.map((w) => w.n), area: true },
+        { key: 'c', name: 'Created', color: '#e8693a', values: created.map((w) => w.n) },
+      ]}
+    />
+  </section>
+  <div class="dash-engage">
+    {engage.map((e) => (
+      <a class="a-card dash-card dash-spark" href={e.href}>
+        <span class="dash-spark__label">{e.label} per week</span>
+        <span class="dash-spark__row"><strong>{e.last}</strong><small class="a-help">this week · {e.total} in 12 weeks{e.prev !== e.last && <Fragment> · {e.last > e.prev ? '▲' : '▼'} vs {e.prev}</Fragment>}</small></span>
+        <Sparkline values={e.weeks.map((w) => w.n)} color={e.color} label={`${e.label} per week over the last 12 weeks: ${e.weeks.map((w) => w.n).join(', ')}`} />
+      </a>
+    ))}
+  </div>
   <div class="a-card" style="margin-bottom:18px">
     <h3>Quick actions</h3>
     <div style="display:flex;flex-wrap:wrap;gap:8px">
