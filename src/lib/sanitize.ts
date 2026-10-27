@@ -28,6 +28,13 @@ export function sanitizeRichText(html: string): string {
 }
 
 /** Plain text only (comments, contact messages). */
+/**
+ * Strips markup and returns literal text. sanitize-html entity-encodes its text output, so decode it
+ * back: callers store plain text that templates escape on render and emails send verbatim.
+ */
 export function plainText(s: string, max = 5000): string {
-  return sanitizeHtml(s, { allowedTags: [], allowedAttributes: {} }).trim().slice(0, max);
+  return sanitizeHtml(s, { allowedTags: [], allowedAttributes: {} })
+    .replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/&amp;/g, '&')
+    .trim()
+    .slice(0, max);
 }

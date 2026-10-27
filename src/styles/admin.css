@@ -255,3 +255,20 @@ dialog.a-dialog::backdrop { background: rgba(2, 30, 36, 0.55); }
   .ibx__read { padding: 16px; max-height: none; }
   .ibx__msg--reply { margin-left: 12px; }
 }
+
+/* ---------- Collapsible sidebar (desktop) ---------- */
+.a-shell { transition: grid-template-columns 0.22s ease; }
+.a-collapse-btn .a-ico-open { display: none; }
+@media (min-width: 901px) {
+  .a-collapsed .a-shell { grid-template-columns: 68px 1fr; }
+  .a-collapsed .a-side { padding: 18px 10px; overflow-x: hidden; }
+  .a-collapsed .a-brand { justify-content: center; padding: 6px 0 18px; }
+  .a-collapsed .a-brand div, .a-collapsed .a-nav__t { display: none; }
+  .a-collapsed .a-nav h4 { height: 1px; margin: 12px 6px; padding: 0; overflow: hidden; color: transparent; background: rgba(255, 255, 255, 0.15); }
+  .a-collapsed .a-nav a { justify-content: center; padding: 9px 0; position: relative; }
+  .a-collapsed .a-nav a .a-badge { position: absolute; top: 3px; right: 6px; min-width: 0; padding: 0 5px; font-size: 0.62rem; line-height: 1.4; }
+  .a-collapsed .a-collapse-btn .a-ico-open { display: inline; }
+  .a-collapsed .a-collapse-btn .a-ico-close { display: none; }
+}
+@media (max-width: 900px) { .a-collapse-btn { display: none; } }
+@media (prefers-reduced-motion: reduce) { .a-shell { transition: none; } }

@@ -324,6 +324,8 @@ test('contact form messages reach the admin inbox', async ({ page, browser }) =>
   // Replies are recorded in the thread (email is not configured in tests).
   await page.fill('#reply-body', 'Thank you, Peter. We will be in touch.');
   await page.click('.ibx__reply button[value=log]');
+  await expect(page).toHaveURL(/done=logged/);
+  await expect(page.getByRole('status')).toContainText('Reply recorded');
   await expect(page.locator('.ibx__msg--reply')).toContainText('Thank you, Peter.');
   await expect(page.locator('.ibx__msg--reply .ibx__status')).toHaveText('Recorded only');
   await page.click('button[value=star]');
@@ -410,6 +412,27 @@ test('admin JSON API rejects cross-origin requests', async ({ page }) => {
   await login(page);
   const r = await page.request.post('/admin/api/reorder', { data: { collection: 'facts', ids: [1] }, headers: { Origin: 'https://evil.example' } });
   expect(r.status()).toBe(403);
+});
+
+test('sidebar collapses to icons, persists across pages, and toggles with [', async ({ page }) => {
+  await login(page);
+  await page.setViewportSize({ width: 1280, height: 800 });
+  await page.goto('/admin');
+  const side = page.locator('.a-side');
+  const wide = (await side.boundingBox())!.width;
+  await page.click('[data-collapse]');
+  await expect(page.locator('[data-collapse]')).toHaveAttribute('aria-expanded', 'false');
+  await expect(page.locator('.a-nav__t').first()).toBeHidden();
+  await expect.poll(async () => (await side.boundingBox())!.width).toBeLessThan(wide / 2);
+  await expect(page.locator('.a-nav a[title="Inbox"]')).toBeVisible();
+  await page.goto('/admin/messages');
+  await expect(page.locator('html')).toHaveClass(/a-collapsed/);
+  await page.keyboard.press('[');
+  await expect(page.locator('html')).not.toHaveClass(/a-collapsed/);
+  await page.fill('.ibx__search input', '[');
+  await expect(page.locator('html')).not.toHaveClass(/a-collapsed/);
+  await page.setViewportSize({ width: 390, height: 800 });
+  await expect(page.locator('[data-collapse]')).toBeHidden();
 });
 
 test('logout ends the session', async ({ page }) => {

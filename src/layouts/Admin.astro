@@ -26,6 +26,7 @@ const active = (href: string) => (href === '/admin' ? path === '/admin' || path 
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="robots" content="noindex, nofollow" />
     <title>{title} · SHAPE CMS</title>
+    <script is:inline src="/js/admin-boot.js"></script>
     <link rel="icon" href="/images/cropped-SHAPE-final-Logo-32x32.jpeg" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -39,34 +40,35 @@ const active = (href: string) => (href === '/admin' ? path === '/admin' || path 
           <div><strong>SHAPE CMS</strong><span>Content management</span></div>
         </a>
         <nav class="a-nav">
-          <a href="/admin" class:list={{ 'is-active': active('/admin') }}><Lucide name="LayoutDashboard" size={17} /> Dashboard</a>
-          <a href="/" target="_blank" rel="noopener"><Lucide name="ExternalLink" size={17} /> View site</a>
+          <a href="/admin" title="Dashboard" class:list={{ 'is-active': active('/admin') }}><Lucide name="LayoutDashboard" size={17} /> <span class="a-nav__t">Dashboard</span></a>
+          <a href="/" title="View site" target="_blank" rel="noopener"><Lucide name="ExternalLink" size={17} /> <span class="a-nav__t">View site</span></a>
           {groups.map((g) => {
             const items = collections.filter((c) => c.group === g && (!c.adminOnly || isAdmin));
             return items.length > 0 && (
               <Fragment>
                 <h4>{g}</h4>
                 {items.map((c) => (
-                  <a href={`/admin/content/${c.key}`} class:list={{ 'is-active': active(`/admin/content/${c.key}`) }}><Lucide name={c.icon as any} size={17} /> {c.label}</a>
+                  <a title={c.label} href={`/admin/content/${c.key}`} class:list={{ 'is-active': active(`/admin/content/${c.key}`) }}><Lucide name={c.icon as any} size={17} /> <span class="a-nav__t">{c.label}</span></a>
                 ))}
               </Fragment>
             );
           })}
           <h4>Engagement</h4>
-          <a href="/admin/comments" class:list={{ 'is-active': active('/admin/comments') }}><Lucide name="MessageSquare" size={17} /> Comments {pending > 0 && <span class="a-badge">{pending}</span>}</a>
-          <a href="/admin/messages" class:list={{ 'is-active': active('/admin/messages') }}><Lucide name="Inbox" size={17} /> Inbox {unread > 0 && <span class="a-badge">{unread}</span>}</a>
+          <a href="/admin/comments" title="Comments" class:list={{ 'is-active': active('/admin/comments') }}><Lucide name="MessageSquare" size={17} /> <span class="a-nav__t">Comments</span> {pending > 0 && <span class="a-badge">{pending}</span>}</a>
+          <a href="/admin/messages" title="Inbox" class:list={{ 'is-active': active('/admin/messages') }}><Lucide name="Inbox" size={17} /> <span class="a-nav__t">Inbox</span> {unread > 0 && <span class="a-badge">{unread}</span>}</a>
           <h4>Tools</h4>
-          <a href="/admin/media" class:list={{ 'is-active': active('/admin/media') }}><Lucide name="Image" size={17} /> Media library</a>
-          <a href="/admin/book" class:list={{ 'is-active': active('/admin/book') }}><Lucide name="BookOpen" size={17} /> Project Book PDF</a>
-          {isAdmin && <a href="/admin/users" class:list={{ 'is-active': active('/admin/users') }}><Lucide name="UserCog" size={17} /> Users</a>}
-          {isAdmin && <a href="/admin/audit" class:list={{ 'is-active': active('/admin/audit') }}><Lucide name="History" size={17} /> Activity log</a>}
-          <a href="/admin/account" class:list={{ 'is-active': active('/admin/account') }}><Lucide name="KeyRound" size={17} /> My account</a>
+          <a href="/admin/media" title="Media library" class:list={{ 'is-active': active('/admin/media') }}><Lucide name="Image" size={17} /> <span class="a-nav__t">Media library</span></a>
+          <a href="/admin/book" title="Project Book PDF" class:list={{ 'is-active': active('/admin/book') }}><Lucide name="BookOpen" size={17} /> <span class="a-nav__t">Project Book PDF</span></a>
+          {isAdmin && <a href="/admin/users" title="Users" class:list={{ 'is-active': active('/admin/users') }}><Lucide name="UserCog" size={17} /> <span class="a-nav__t">Users</span></a>}
+          {isAdmin && <a href="/admin/audit" title="Activity log" class:list={{ 'is-active': active('/admin/audit') }}><Lucide name="History" size={17} /> <span class="a-nav__t">Activity log</span></a>}
+          <a href="/admin/account" title="My account" class:list={{ 'is-active': active('/admin/account') }}><Lucide name="KeyRound" size={17} /> <span class="a-nav__t">My account</span></a>
         </nav>
       </aside>
       <div class="a-main">
         <header class="a-top">
           <div style="display:flex;align-items:center;gap:10px">
             <button class="a-btn a-btn--ghost a-btn--sm a-menu-btn" type="button" data-menu aria-label="Open menu"><Lucide name="Menu" size={16} /></button>
+            <button class="a-btn a-btn--ghost a-btn--sm a-collapse-btn" type="button" data-collapse aria-label="Collapse sidebar" aria-expanded="true" title="Collapse sidebar ( [ )"><Lucide name="PanelLeftClose" size={16} class="a-ico-close" /><Lucide name="PanelLeftOpen" size={16} class="a-ico-open" /></button>
             <nav class="a-top__crumbs" aria-label="Breadcrumb">
               <a href="/admin">Dashboard</a>
               {crumbs.map((c) => <Fragment> / {c.href ? <a href={c.href}>{c.label}</a> : <span>{c.label}</span>}</Fragment>)}
@@ -93,6 +95,25 @@ const active = (href: string) => (href === '/admin' ? path === '/admin' || path 
       const side = document.querySelector('[data-side]');
       document.querySelector('[data-menu]')?.addEventListener('click', () => side?.classList.toggle('is-open'));
       side?.addEventListener('click', (e) => { if (e.target === side) side.classList.remove('is-open'); });
+      // Desktop: collapse the sidebar to icons; remembered per browser (admin-boot.js applies it before paint).
+      const root = document.documentElement;
+      const collapseBtn = document.querySelector<HTMLButtonElement>('[data-collapse]');
+      const syncCollapse = () => {
+        const on = root.classList.contains('a-collapsed');
+        collapseBtn?.setAttribute('aria-expanded', String(!on));
+        collapseBtn?.setAttribute('aria-label', on ? 'Expand sidebar' : 'Collapse sidebar');
+      };
+      const toggleCollapse = () => {
+        const on = root.classList.toggle('a-collapsed');
+        try { localStorage.setItem('shape-admin-collapsed', on ? '1' : '0'); } catch {}
+        syncCollapse();
+      };
+      collapseBtn?.addEventListener('click', toggleCollapse);
+      document.addEventListener('keydown', (e) => {
+        const t = e.target as HTMLElement;
+        if (e.key === '[' && !e.metaKey && !e.ctrlKey && !e.altKey && !t.closest('input, textarea, select, [contenteditable="true"], .ProseMirror')) toggleCollapse();
+      });
+      syncCollapse();
     </script>
   </body>
 </html>

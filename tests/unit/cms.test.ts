@@ -203,6 +203,16 @@ describe('engagement', () => {
     expect(c.body).toBe('Hello');
   });
 
+  it('stores literal text for messages: markup stripped, characters not entity-encoded', async () => {
+    const { addMessage, getMessage } = await import('../../src/lib/engagement');
+    const r = addMessage({ name: 'Q&A Desk', email: 'qa@example.org', subject: 'Fees < 5 & "dates"', body: "It's <b>fine</b> & <script>x()</script>ok" });
+    if (!r.ok) throw new Error('setup');
+    const m = getMessage(r.id)!;
+    expect(m.name).toBe('Q&A Desk');
+    expect(m.subject).toBe('Fees < 5 & "dates"');
+    expect(m.body).toBe("It's fine & ok");
+  });
+
   it('keeps an inbox: folders, search, star, archive and recorded replies', async () => {
     const { addMessage, listMessages, folderCounts, setStarred, setArchived, addReply, listReplies, countUnreadMessages, markAllRead } = await import('../../src/lib/engagement');
     const a = addMessage({ name: 'Inbox Tester', email: 'inbox@example.org', subject: 'Inbox subject one', body: 'Body about curricula' });

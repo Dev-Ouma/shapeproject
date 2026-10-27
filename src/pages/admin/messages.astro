@@ -47,19 +47,23 @@ if (Astro.request.method === 'POST') {
       if (f.get('mode') === 'log' || !mailEnabled()) {
         addReply(id, user.id, body, 'logged');
         audit(user.id, 'message.reply.log', String(id));
-        notice = 'Reply recorded. It was not emailed — send it from your mail client.';
+        return Astro.redirect(keep(id) + '&done=logged', 303);
       } else {
         const r = await sendMail(msg.email, subject, body, process.env.NOTIFY_EMAIL);
         addReply(id, user.id, body, r.ok ? 'sent' : 'failed', r.ok ? undefined : r.error);
         audit(user.id, r.ok ? 'message.reply.sent' : 'message.reply.failed', String(id));
-        if (r.ok) notice = `Reply emailed to ${msg.email}.`;
-        else error = `Email failed: ${r.error} The reply is saved in the thread.`;
+        // Redirect after POST so a page refresh cannot send the reply twice.
+        return Astro.redirect(keep(id) + `&done=${r.ok ? 'sent' : 'failed'}`, 303);
       }
       break;
     }
   }
 }
 
+const done = Astro.url.searchParams.get('done');
+if (done === 'logged') notice = 'Reply recorded. It was not emailed — send it from your mail app if needed.';
+if (done === 'sent') notice = 'Reply emailed and recorded in the thread.';
+if (done === 'failed') error = 'Email failed. The reply is saved in the thread with the reason.';
 const openId = Number(Astro.url.searchParams.get('id'));
 const open = openId ? getMessage(openId) : undefined;
 if (open && !open.read) { markRead(open.id); open.read = 1; }
