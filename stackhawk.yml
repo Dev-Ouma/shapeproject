@@ -12,6 +12,7 @@ app:
     - "/admin/book.*"         # spawns a headless browser to render the PDF
     - "/uploads/.*"
     - "/_astro/.*"
+    - "/admin/system/modes.*" # lockdown would sign the scan session out
   authentication:
     loginPagePath: /admin/login
     usernamePassword:
@@ -42,6 +43,12 @@ hawk:
       - /admin/comments
       - /admin/messages
       - /admin/users
+      - /admin/analytics
+      - /admin/system
+      - /admin/trash
+      - /admin/audit
+      - /admin/releases
+      - /admin/content/thematic
       - /contact/
       - /news/shape-project-officially-launches/
       - /search/?s=smart

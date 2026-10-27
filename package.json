@@ -13,14 +13,14 @@
     "create-admin": "node scripts/create-admin.mjs"
   },
   "dependencies": {
-    "@astrojs/node": "^9.5.5",
+    "@astrojs/node": "^11.1.9",
     "@tiptap/core": "^3.32.0",
     "@tiptap/extension-image": "^3.32.0",
     "@tiptap/extension-link": "^3.32.0",
     "@tiptap/starter-kit": "^3.32.0",
-    "astro": "^5.13.0",
+    "astro": "^7.4.2",
     "lucide-static": "^1.61.0",
-    "nodemailer": "^7.0.10",
+    "nodemailer": "^10.2.1",
     "qrcode": "^1.5.4",
     "sanitize-html": "^2.18.1",
     "sharp": "^0.35.5"
