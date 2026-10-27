@@ -1,0 +1,81 @@
+---
+import Admin from '../../layouts/Admin.astro';
+import Lucide from '../../components/Lucide.astro';
+import { audit, can } from '../../lib/auth';
+import { getCollection } from '../../lib/schema';
+import { listTrash, restoreItem, purgeItem, purgeOlderThan, RETENTION_DAYS } from '../../lib/trash';
+
+const user = Astro.locals.user!;
+const isAdmin = can(user, 'admin');
+let error = '';
+if (Astro.request.method === 'POST') {
+  const f = await Astro.request.formData();
+  const action = String(f.get('action'));
+  const kind = f.get('kind') === 'media' ? 'media' : 'entry';
+  const id = Number(f.get('id'));
+  const item = listTrash().find((t) => t.kind === kind && t.id === id);
+  const adminOnlyItem = item?.collection ? !!getCollection(item.collection)?.adminOnly : false;
+  if (action === 'empty') {
+    if (!isAdmin) return new Response('Forbidden: admins only', { status: 403 });
+    const n = purgeOlderThan(0);
+    audit(user.id, 'trash.empty', `${n} item${n === 1 ? '' : 's'}`);
+    return Astro.redirect('/admin/trash?done=emptied', 303);
+  }
+  if (!item) error = 'That item is no longer in the bin.';
+  else if (action === 'restore') {
+    if (adminOnlyItem && !isAdmin) return new Response('Forbidden: admins only', { status: 403 });
+    restoreItem(kind, id);
+    audit(user.id, `${item.collection ?? 'media'}.restore`, item.title, { id });
+    return Astro.redirect(`/admin/trash?done=restored&what=${encodeURIComponent(item.title)}`, 303);
+  } else if (action === 'purge') {
+    if (!isAdmin) return new Response('Forbidden: admins only', { status: 403 });
+    purgeItem(kind, id);
+    audit(user.id, `${item.collection ?? 'media'}.purge`, item.title, { id });
+    return Astro.redirect('/admin/trash?done=purged', 303);
+  } else error = 'Unknown action.';
+  Astro.response.status = 400;
+}
+const items = listTrash();
+const done = Astro.url.searchParams.get('done');
+const what = Astro.url.searchParams.get('what');
+---
+
+<Admin title="Recycle bin" crumbs={[{ label: 'Administration', href: isAdmin ? '/admin/system' : undefined }, { label: 'Recycle bin' }]}>
+  <div class="a-head">
+    <div><h1>Recycle bin</h1><p>Deleted content and files stay here for {RETENTION_DAYS} days, then they are removed for good.</p></div>
+    {isAdmin && items.length > 0 && (
+      <form method="post"><button class="a-btn a-btn--danger" name="action" value="empty" data-confirm={`Permanently delete all ${items.length} items in the bin? This cannot be undone.`}><Lucide name="Trash2" size={16} /> Empty bin</button></form>
+    )}
+  </div>
+  {done === 'restored' && <p class="a-flash a-flash--ok" role="status">Restored “{what}”. It is back where it was.</p>}
+  {done === 'purged' && <p class="a-flash a-flash--ok" role="status">Permanently deleted.</p>}
+  {done === 'emptied' && <p class="a-flash a-flash--ok" role="status">The recycle bin is empty.</p>}
+  {error && <p class="a-flash a-flash--err" role="alert">{error}</p>}
+  {items.length === 0 ? (
+    <div class="a-card a-empty"><Lucide name="Recycle" size={28} /><p>The bin is empty. Deleted items will appear here.</p></div>
+  ) : (
+    <div class="a-table-wrap">
+      <table class="a-table a-table--stack">
+        <thead><tr><th>Item</th><th>Type</th><th>Deleted</th><th>Removed for good</th><th><span class="sr-only">Actions</span></th></tr></thead>
+        <tbody>
+          {items.map((t) => (
+            <tr data-trash={`${t.kind}-${t.id}`}>
+              <td data-label="Item"><strong>{t.title}</strong></td>
+              <td data-label="Type"><span class="a-pill">{t.type}</span></td>
+              <td data-label="Deleted" class="a-help">{t.deleted_at} UTC · {t.deleted_by ?? 'System'}</td>
+              <td data-label="Removed" class="a-help">{t.purge_on}</td>
+              <td class="a-row-actions">
+                <form method="post">
+                  <input type="hidden" name="kind" value={t.kind} /><input type="hidden" name="id" value={t.id} />
+                  <button class="a-btn a-btn--sm" name="action" value="restore" aria-label={`Restore ${t.title}`}><Lucide name="ArchiveRestore" size={14} /> Restore</button>
+                  {isAdmin && <button class="a-btn a-btn--danger a-btn--sm" name="action" value="purge" aria-label={`Delete ${t.title} permanently`} data-confirm={`Permanently delete “${t.title}”? This cannot be undone.`}><Lucide name="Trash2" size={14} /> Delete</button>}
+                </form>
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  )}
+  {!isAdmin && items.length > 0 && <p class="a-help">Only administrators can delete items permanently.</p>}
+</Admin>

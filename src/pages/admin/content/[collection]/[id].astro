@@ -1,6 +1,7 @@
 ---
 import Admin from '../../../../layouts/Admin.astro';
 import EntryForm from '../../../../components/admin/EntryForm.astro';
+import Revisions from '../../../../components/admin/Revisions.astro';
 import { getCollection } from '../../../../lib/schema';
 import { getEntry, entryTitle } from '../../../../lib/content';
 import { handleEntryPost, type FormState } from '../../../../lib/save-handler';
@@ -20,6 +21,9 @@ const title = entryTitle(c, entry);
 <Admin title={title} crumbs={[{ label: c.label, href: `/admin/content/${c.key}` }, { label: title }]}>
   <div class="a-head"><h1>{title}</h1></div>
   {Astro.url.searchParams.has('saved') && <p class="a-flash a-flash--ok" role="status">Saved. Changes are live on the site.</p>}
+  {Astro.url.searchParams.has('duplicated') && <p class="a-flash a-flash--ok" role="status">Duplicated. You are now editing the copy{c.drafts ? ', saved as a draft' : ''}.</p>}
+  {Astro.url.searchParams.has('restored') && <p class="a-flash a-flash--ok" role="status">Revision #{Astro.url.searchParams.get('restored')} restored.</p>}
   {state && <p class="a-flash a-flash--err" role="alert">Please fix the highlighted fields.</p>}
   <EntryForm collection={c} entry={entry} values={state?.values ?? entry.data} errors={state?.errors ?? {}} slug={state?.slug} />
+  <Revisions collection={c} entry={entry} compare={Number(Astro.url.searchParams.get('rev')) || undefined} />
 </Admin>

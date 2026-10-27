@@ -144,6 +144,42 @@ const MIGRATIONS: string[] = [
   CREATE INDEX analytics_visitor_ts ON analytics_events(visitor, ts);
   CREATE TABLE analytics_salts (day TEXT PRIMARY KEY, salt TEXT NOT NULL);
   `,
+  // 5 — administration: recycle bin, revisions, richer audit trail, system switches, first release note
+  `
+  ALTER TABLE entries ADD COLUMN deleted_at TEXT;
+  ALTER TABLE entries ADD COLUMN deleted_by INTEGER;
+  ALTER TABLE media ADD COLUMN deleted_at TEXT;
+  ALTER TABLE media ADD COLUMN deleted_by INTEGER;
+  ALTER TABLE audit_log ADD COLUMN ip TEXT;
+  ALTER TABLE audit_log ADD COLUMN user_agent TEXT;
+  ALTER TABLE audit_log ADD COLUMN detail TEXT;
+  CREATE INDEX audit_at ON audit_log(at);
+  CREATE TABLE revisions (
+    id INTEGER PRIMARY KEY,
+    entry_id INTEGER NOT NULL,
+    collection TEXT NOT NULL,
+    slug TEXT,
+    status TEXT NOT NULL,
+    data TEXT NOT NULL,
+    note TEXT,
+    user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+    created_at TEXT NOT NULL DEFAULT (datetime('now'))
+  );
+  CREATE INDEX revisions_entry ON revisions(entry_id, id);
+  CREATE TABLE system_flags (
+    key TEXT PRIMARY KEY,
+    value TEXT NOT NULL,
+    updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+    updated_by INTEGER
+  );
+  INSERT INTO entries (collection, slug, status, position, data) VALUES ('releases', '1-4-0', 'published', 0, json_object(
+    'version', '1.4.0',
+    'title', 'Administration module',
+    'date', date('now'),
+    'summary', 'Audit trail, recycle bin, revisions, release notes, maintenance and lockdown modes.',
+    'notes', '<h3>New</h3><ul><li><strong>Administration</strong> section: system overview, audit trail with filters, diffs and CSV export, recycle bin with 30-day retention, release notes, maintenance and lockdown switches.</li><li><strong>Revisions</strong> on every save, with compare and one-click restore.</li><li><strong>Duplicate</strong> any item from its list or editor.</li><li>Richer dashboard: content mix, publishing activity, engagement trends and project timeline.</li></ul><h3>Already in place</h3><ul><li>First-party, cookieless analytics with live visitors and CSV export.</li><li>Inbox with folders, search, stars, archive and reply threads.</li><li>Two-step sign-in (authenticator app) for every account.</li><li>Comments moderation, media library, Project Book PDF.</li></ul>'
+  ));
+  `,
 ];
 
 let db: DatabaseSync | undefined;

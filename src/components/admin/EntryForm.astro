@@ -48,8 +48,9 @@ const viewUrl = entry ? publicUrl(c, entry.slug) : undefined;
       {entry && <p class="a-help" style="margin:0">Last saved {entry.updated_at} UTC</p>}
     </div>
     {entry && c.kind === 'list' && (
-      <div class="a-card">
-        <button class="a-btn a-btn--danger" type="submit" name="_action" value="delete" formnovalidate data-confirm="Delete this item permanently?"><Lucide name="Trash2" size={16} /> Delete</button>
+      <div class="a-card a-form">
+        <button class="a-btn a-btn--ghost" type="submit" name="_action" value="duplicate" formnovalidate title="Create a copy of the saved version and open it"><Lucide name="Copy" size={16} /> Duplicate</button>
+        <button class="a-btn a-btn--danger" type="submit" name="_action" value="delete" formnovalidate data-confirm="Move this item to the recycle bin? You can restore it for 30 days."><Lucide name="Trash2" size={16} /> Delete</button>
       </div>
     )}
   </aside>

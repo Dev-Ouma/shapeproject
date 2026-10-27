@@ -34,7 +34,7 @@ export function onInvalidate(fn: () => void) {
 export function listEntries(collection: string, opts: { includeDrafts?: boolean } = {}): Entry[] {
   ensureSeeded();
   const rows = getDb()
-    .prepare(`SELECT * FROM entries WHERE collection = ? ${opts.includeDrafts ? '' : "AND status = 'published'"} ORDER BY position, id`)
+    .prepare(`SELECT * FROM entries WHERE collection = ? AND deleted_at IS NULL ${opts.includeDrafts ? '' : "AND status = 'published'"} ORDER BY position, id`)
     .all(collection) as Row[];
   const entries = rows.map(parse);
   const c = getCollection(collection);
@@ -51,13 +51,13 @@ export function listEntries(collection: string, opts: { includeDrafts?: boolean 
 
 export function getEntry(id: number): Entry | undefined {
   ensureSeeded();
-  const r = getDb().prepare('SELECT * FROM entries WHERE id = ?').get(id) as Row | undefined;
+  const r = getDb().prepare('SELECT * FROM entries WHERE id = ? AND deleted_at IS NULL').get(id) as Row | undefined;
   return r ? parse(r) : undefined;
 }
 
 export function getSingleton<T = Record<string, any>>(collection: string): Entry<T> | undefined {
   ensureSeeded();
-  const r = getDb().prepare('SELECT * FROM entries WHERE collection = ? ORDER BY id LIMIT 1').get(collection) as Row | undefined;
+  const r = getDb().prepare('SELECT * FROM entries WHERE collection = ? AND deleted_at IS NULL ORDER BY id LIMIT 1').get(collection) as Row | undefined;
   return r ? (parse(r) as Entry<T>) : undefined;
 }
 
@@ -112,14 +112,101 @@ export function saveEntry(collectionKey: string, input: SaveInput): SaveResult {
       .run(collectionKey, slug, status, p, JSON.stringify(data), input.userId ?? null);
     return Number(r.lastInsertRowid);
   });
+  const entry = getEntry(id)!;
+  addRevision(entry, input.userId);
   invalidate();
-  return { ok: true, entry: getEntry(id)! };
+  return { ok: true, entry };
 }
 
-export function deleteEntry(id: number): boolean {
-  const r = getDb().prepare('DELETE FROM entries WHERE id = ?').run(id);
+/* ------------------------------------------------------------------ */
+/* Recycle bin, duplicates and revisions                               */
+/* ------------------------------------------------------------------ */
+
+/** Move an entry to the recycle bin (hidden everywhere until restored or purged). */
+export function deleteEntry(id: number, userId?: number): boolean {
+  const r = getDb().prepare("UPDATE entries SET deleted_at = datetime('now'), deleted_by = ? WHERE id = ? AND deleted_at IS NULL").run(userId ?? null, id);
   invalidate();
   return r.changes > 0;
+}
+
+export function getTrashedEntry(id: number): Entry | undefined {
+  const r = getDb().prepare('SELECT * FROM entries WHERE id = ? AND deleted_at IS NOT NULL').get(id) as Row | undefined;
+  return r ? parse(r) : undefined;
+}
+
+export function restoreEntry(id: number): Entry | undefined {
+  const r = getDb().prepare('UPDATE entries SET deleted_at = NULL, deleted_by = NULL WHERE id = ? AND deleted_at IS NOT NULL').run(id);
+  invalidate();
+  return r.changes ? getEntry(id) : undefined;
+}
+
+/** Permanently remove a binned entry and its revisions. */
+export function purgeEntry(id: number): boolean {
+  const r = tx(() => {
+    getDb().prepare('DELETE FROM revisions WHERE entry_id = ?').run(id);
+    return getDb().prepare('DELETE FROM entries WHERE id = ? AND deleted_at IS NOT NULL').run(id);
+  });
+  return r.changes > 0;
+}
+
+/** Copy an entry as a new item: " (copy)" title, unique slug, draft where supported, placed last. */
+export function duplicateEntry(id: number, userId?: number): Entry | undefined {
+  const src = getEntry(id);
+  const c = src && getCollection(src.collection);
+  if (!src || !c || c.kind !== 'list') return undefined;
+  const data = structuredClone(src.data);
+  if (c.titleField && typeof data[c.titleField] === 'string') data[c.titleField] = `${data[c.titleField]} (copy)`;
+  const slug = c.slugFrom ? uniqueSlug(c.key, slugify(`${src.slug ?? data[c.slugFrom] ?? ''}-copy`)) : null;
+  const db = getDb();
+  const newId = tx(() => {
+    const { p } = db.prepare('SELECT COALESCE(MAX(position), -1) + 1 AS p FROM entries WHERE collection = ?').get(c.key) as { p: number };
+    const r = db
+      .prepare('INSERT INTO entries (collection, slug, status, position, data, updated_by) VALUES (?, ?, ?, ?, ?, ?)')
+      .run(c.key, slug, c.drafts ? 'draft' : 'published', p, JSON.stringify(data), userId ?? null);
+    return Number(r.lastInsertRowid);
+  });
+  const entry = getEntry(newId)!;
+  addRevision(entry, userId, `Duplicated from #${src.id}`);
+  invalidate();
+  return entry;
+}
+
+export type Revision = { id: number; entry_id: number; collection: string; slug: string | null; status: string; data: Record<string, any>; note: string | null; user_id: number | null; user_name?: string | null; created_at: string };
+
+function addRevision(e: Entry, userId?: number, note?: string) {
+  getDb()
+    .prepare('INSERT INTO revisions (entry_id, collection, slug, status, data, note, user_id) VALUES (?, ?, ?, ?, ?, ?, ?)')
+    .run(e.id, e.collection, e.slug, e.status, JSON.stringify(e.data), note ?? null, userId ?? null);
+}
+
+export function listRevisions(entryId: number, limit = 50): Revision[] {
+  return (getDb()
+    .prepare('SELECT r.*, u.name AS user_name FROM revisions r LEFT JOIN users u ON u.id = r.user_id WHERE r.entry_id = ? ORDER BY r.id DESC LIMIT ?')
+    .all(entryId, limit) as any[]).map((r) => ({ ...r, data: JSON.parse(r.data) }));
+}
+
+export function getRevision(id: number): Revision | undefined {
+  const r = getDb().prepare('SELECT r.*, u.name AS user_name FROM revisions r LEFT JOIN users u ON u.id = r.user_id WHERE r.id = ?').get(id) as any;
+  return r ? { ...r, data: JSON.parse(r.data) } : undefined;
+}
+
+/** Bring back an earlier version's content; the restore itself becomes a new revision. */
+export function restoreRevision(entryId: number, revisionId: number, userId?: number): Entry | undefined {
+  const rev = getRevision(revisionId);
+  const e = getEntry(entryId);
+  if (!rev || !e || rev.entry_id !== e.id) return undefined;
+  getDb().prepare("UPDATE entries SET data = ?, updated_at = datetime('now'), updated_by = ? WHERE id = ?").run(JSON.stringify(rev.data), userId ?? null, e.id);
+  const entry = getEntry(e.id)!;
+  addRevision(entry, userId, `Restored revision #${rev.id}`);
+  invalidate();
+  return entry;
+}
+
+export type FieldChange = { field: string; before: unknown; after: unknown };
+/** Field-level differences between two versions of an entry's data. */
+export function diffData(before: Record<string, any> = {}, after: Record<string, any> = {}): FieldChange[] {
+  const keys = [...new Set([...Object.keys(before), ...Object.keys(after)])];
+  return keys.filter((k) => JSON.stringify(before[k] ?? null) !== JSON.stringify(after[k] ?? null)).map((field) => ({ field, before: before[field] ?? null, after: after[field] ?? null }));
 }
 
 export function reorder(collection: string, ids: number[]) {
@@ -142,7 +229,8 @@ let seeded = false;
 export function ensureSeeded() {
   if (seeded) return;
   const db = getDb();
-  const { n } = db.prepare('SELECT COUNT(*) AS n FROM entries').get() as { n: number };
+  // Release notes are seeded by a migration, so they do not count as existing site content.
+  const { n } = db.prepare("SELECT COUNT(*) AS n FROM entries WHERE collection != 'releases'").get() as { n: number };
   seeded = true;
   if (n > 0) return;
   // Imported lazily so the seed data is only bundled into the seeding path.

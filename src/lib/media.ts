@@ -41,7 +41,7 @@ const SIGNATURES: { mime: string; ext: string; test: (b: Buffer) => boolean }[] 
   { mime: 'application/vnd.openxmlformats-officedocument.presentationml.presentation', ext: 'pptx', test: (b) => b[0] === 0x50 && b[1] === 0x4b },
 ];
 
-export type MediaRow = { id: number; path: string; original_name: string; mime: string; size: number; width: number | null; height: number | null; alt: string; variants: string; created_at: string };
+export type MediaRow = { id: number; path: string; original_name: string; mime: string; size: number; width: number | null; height: number | null; alt: string; variants: string; created_at: string; deleted_at?: string | null };
 
 export function detectType(buf: Buffer, filename: string) {
   const ext = extname(filename).slice(1).toLowerCase();
@@ -128,7 +128,7 @@ export function getMedia(id: number): MediaRow | undefined {
 }
 
 export function listMedia(opts: { q?: string; images?: boolean; limit?: number; offset?: number } = {}): MediaRow[] {
-  const where: string[] = [];
+  const where: string[] = ['deleted_at IS NULL'];
   const args: (string | number)[] = [];
   if (opts.q) { where.push('(original_name LIKE ? OR alt LIKE ?)'); args.push(`%${opts.q}%`, `%${opts.q}%`); }
   if (opts.images) where.push("mime LIKE 'image/%'");
@@ -145,16 +145,29 @@ export function mediaUsage(path: string): { id: number; collection: string }[] {
   return getDb().prepare('SELECT id, collection FROM entries WHERE instr(data, ?) > 0').all(path) as any;
 }
 
-export function deleteMedia(id: number): { ok: boolean; usedBy?: { id: number; collection: string }[] } {
+/** Move a file to the recycle bin (refused while content still uses it). The file stays on disk until purged. */
+export function deleteMedia(id: number, userId?: number): { ok: boolean; usedBy?: { id: number; collection: string }[] } {
   const m = getMedia(id);
-  if (!m) return { ok: false };
+  if (!m || m.deleted_at) return { ok: false };
   const usedBy = mediaUsage(m.path);
   if (usedBy.length) return { ok: false, usedBy };
+  getDb().prepare("UPDATE media SET deleted_at = datetime('now'), deleted_by = ? WHERE id = ?").run(userId ?? null, id);
+  return { ok: true };
+}
+
+export function restoreMedia(id: number): boolean {
+  return getDb().prepare('UPDATE media SET deleted_at = NULL, deleted_by = NULL WHERE id = ? AND deleted_at IS NOT NULL').run(id).changes > 0;
+}
+
+/** Permanently remove a binned file and its variants from disk. */
+export function purgeMedia(id: number): boolean {
+  const m = getMedia(id);
+  if (!m || !m.deleted_at) return false;
   const root = UPLOAD_DIR();
   for (const p of [m.path, ...Object.values(JSON.parse(m.variants) as Record<string, string>)]) {
     const abs = join(root, p.replace(/^\/uploads\//, ''));
     if (abs.startsWith(root) && existsSync(abs)) unlinkSync(abs);
   }
   getDb().prepare('DELETE FROM media WHERE id = ?').run(id);
-  return { ok: true };
+  return true;
 }

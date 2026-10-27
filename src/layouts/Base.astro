@@ -4,6 +4,8 @@ import '../styles/global.css';
 import Icon from '../components/Icon.astro';
 import Lucide from '../components/Lucide.astro';
 import { safeJson } from '../lib/json';
+import { getMaintenance } from '../lib/system';
+const staffMaintenance = !!Astro.locals.user && getMaintenance().on;
 const { contact, nav, socials, disclaimer, footerText } = loadSite();
 
 interface Props {
@@ -96,6 +98,7 @@ const tel = contact.phone.replace(/[^+\d]/g, '');
     <link href="https://fonts.googleapis.com/css2?family=Inter:ital,wght@0,400;0,500;0,600;1,400&family=Poppins:wght@500;600;700;800&family=Roboto:ital@0;1&display=swap" rel="stylesheet" />
   </head>
   <body>
+    {staffMaintenance && <div class="preview-bar" role="status" style="background:#037b90;color:#fff">Maintenance mode is on — visitors see the maintenance page. You are seeing the live site because you are signed in. <a href="/admin/system/modes" style="color:#fff;text-decoration:underline">Manage</a></div>}
     <div class="preloader" data-preloader role="status" aria-label="Loading">
       <div class="preloader__inner">
         <span class="preloader__ring"></span>

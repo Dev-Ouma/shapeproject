@@ -1,6 +1,7 @@
 ---
 import Admin from '../../../../layouts/Admin.astro';
 import EntryForm from '../../../../components/admin/EntryForm.astro';
+import Revisions from '../../../../components/admin/Revisions.astro';
 import Lucide from '../../../../components/Lucide.astro';
 import { getCollection } from '../../../../lib/schema';
 import { listEntries, getSingleton, entryTitle } from '../../../../lib/content';
@@ -20,6 +21,7 @@ if (c.kind === 'singleton' && Astro.request.method === 'POST') {
 const entries = c.kind === 'list' ? listEntries(c.key, { includeDrafts: true }) : [];
 const saved = Astro.url.searchParams.has('saved');
 const deleted = Astro.url.searchParams.has('deleted');
+const restored = Astro.url.searchParams.get('restored');
 const q = (Astro.url.searchParams.get('q') ?? '').toLowerCase();
 const shown = q ? entries.filter((e) => entryTitle(c, e).toLowerCase().includes(q)) : entries;
 const view = publicUrl(c, null);
@@ -37,11 +39,15 @@ const view = publicUrl(c, null);
     </div>
   </div>
   {saved && <p class="a-flash a-flash--ok" role="status">Saved. Changes are live on the site.</p>}
-  {deleted && <p class="a-flash a-flash--ok" role="status">Deleted.</p>}
+  {deleted && <p class="a-flash a-flash--ok" role="status">Deleted. The item is in the <a href="/admin/trash">recycle bin</a> for 30 days.</p>}
+  {restored && <p class="a-flash a-flash--ok" role="status">Revision #{restored} restored.</p>}
   {state && <p class="a-flash a-flash--err" role="alert">Please fix the highlighted fields.</p>}
 
   {c.kind === 'singleton' ? (
-    <EntryForm collection={c} entry={single} values={state?.values ?? single?.data ?? {}} errors={state?.errors ?? {}} />
+    <Fragment>
+      <EntryForm collection={c} entry={single} values={state?.values ?? single?.data ?? {}} errors={state?.errors ?? {}} />
+      {single && <Revisions collection={c} entry={single} compare={Number(Astro.url.searchParams.get('rev')) || undefined} />}
+    </Fragment>
   ) : (
     <Fragment>
       {entries.length > 8 && (
@@ -50,7 +56,7 @@ const view = publicUrl(c, null);
       {shown.length === 0 ? (
         <div class="a-card a-empty">No {c.label.toLowerCase()} yet. <a href={`/admin/content/${c.key}/new`}>Create the first one</a>.</div>
       ) : (
-        <table class="a-table" data-sortable={c.sortable && !q ? c.key : undefined}>
+        <div class="a-table-scroll"><table class="a-table" data-sortable={c.sortable && !q ? c.key : undefined}>
           <thead><tr>{c.sortable && !q && <th aria-label="Order"></th>}<th>Title</th>{c.drafts && <th>Status</th>}{c.key === 'posts' && <th>Date</th>}<th>Updated</th><th></th></tr></thead>
           <tbody>
             {shown.map((e) => (
@@ -60,11 +66,14 @@ const view = publicUrl(c, null);
                 {c.drafts && <td><span class={`a-pill a-pill--${postState(e)}`}>{postState(e)}</span></td>}
                 {c.key === 'posts' && <td>{new Date(e.data.date).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}</td>}
                 <td class="a-help">{e.updated_at}</td>
-                <td style="text-align:right"><a class="a-btn a-btn--ghost a-btn--sm" href={`/admin/content/${c.key}/${e.id}`}>Edit</a></td>
+                <td class="a-row-actions">
+                  <a class="a-btn a-btn--ghost a-btn--sm" href={`/admin/content/${c.key}/${e.id}`}>Edit</a>
+                  <form method="post" action={`/admin/content/${c.key}/${e.id}`}><button class="a-btn a-btn--ghost a-btn--sm" type="submit" name="_action" value="duplicate" aria-label={`Duplicate ${entryTitle(c, e)}`} title="Duplicate"><Lucide name="Copy" size={14} /><span class="a-hide-sm"> Duplicate</span></button></form>
+                </td>
               </tr>
             ))}
           </tbody>
-        </table>
+        </table></div>
       )}
       <p class="a-help" data-order-status role="status"></p>
     </Fragment>

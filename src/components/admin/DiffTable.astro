@@ -1,0 +1,30 @@
+---
+// Field-level before/after table used by revisions and the audit trail.
+interface Change { field: string; before: unknown; after: unknown }
+interface Props { changes: Change[]; labels?: Record<string, string>; beforeLabel?: string; afterLabel?: string }
+const { changes, labels = {}, beforeLabel = 'Before', afterLabel = 'After' } = Astro.props;
+const show = (v: unknown): string => {
+  if (v === null || v === undefined || v === '') return '—';
+  if (typeof v === 'string') {
+    const t = v.includes('<') ? v.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim() : v;
+    return t.length > 400 ? t.slice(0, 400) + '…' : t;
+  }
+  if (typeof v === 'boolean') return v ? 'Yes' : 'No';
+  const j = JSON.stringify(v);
+  return j.length > 400 ? j.slice(0, 400) + '…' : j;
+};
+---
+<div class="a-diff-wrap">
+  <table class="a-diff">
+    <thead><tr><th scope="col">Field</th><th scope="col">{beforeLabel}</th><th scope="col">{afterLabel}</th></tr></thead>
+    <tbody>
+      {changes.map((ch) => (
+        <tr>
+          <th scope="row">{labels[ch.field] ?? ch.field}</th>
+          <td class="a-diff__old">{show(ch.before)}</td>
+          <td class="a-diff__new">{show(ch.after)}</td>
+        </tr>
+      ))}
+    </tbody>
+  </table>
+</div>

@@ -1,0 +1,50 @@
+---
+// Revision history for an entry: every save is kept; compare any version with the current one and restore it.
+import Lucide from '../Lucide.astro';
+import DiffTable from './DiffTable.astro';
+import type { Collection } from '../../lib/schema';
+import { listRevisions, getRevision, diffData, type Entry } from '../../lib/content';
+
+interface Props { collection: Collection; entry: Entry; compare?: number }
+const { collection: c, entry, compare } = Astro.props;
+const revs = listRevisions(entry.id);
+const sel = compare ? getRevision(compare) : undefined;
+const shown = sel && sel.entry_id === entry.id ? sel : undefined;
+const changes = shown ? diffData(shown.data, entry.data) : [];
+const labels = Object.fromEntries(c.fields.map((f) => [f.name, f.label]));
+const base = Astro.url.pathname;
+---
+
+<section class="a-card a-revs" id="revisions" aria-labelledby="revs-h">
+  <header class="a-revs__head">
+    <h3 id="revs-h"><Lucide name="History" size={17} /> Revision history</h3>
+    <span class="a-help">{revs.length} saved {revs.length === 1 ? 'version' : 'versions'}</span>
+  </header>
+  {revs.length === 0 ? (
+    <p class="a-help">No revisions yet. Every save from now on is kept here.</p>
+  ) : (
+    <ol class="a-revs__list">
+      {revs.map((r, i) => (
+        <li class:list={{ 'is-sel': shown?.id === r.id }}>
+          <span class="a-revs__dot" aria-hidden="true"></span>
+          <div class="a-revs__meta">
+            <strong>{i === 0 ? 'Current' : `Revision #${r.id}`}</strong>
+            <span class="a-help">{r.created_at} UTC · {r.user_name ?? 'System'}{r.note && ` · ${r.note}`}</span>
+          </div>
+          {i > 0 && <a class="a-btn a-btn--ghost a-btn--sm" href={`${base}?rev=${r.id}#revisions`}><Lucide name="GitCompare" size={14} /> Compare</a>}
+        </li>
+      ))}
+    </ol>
+  )}
+  {shown && (
+    <div class="a-revs__cmp">
+      <h4>Revision #{shown.id} → current</h4>
+      {changes.length === 0 ? <p class="a-help">Identical to the current version.</p> : <DiffTable changes={changes} labels={labels} beforeLabel={`#${shown.id}`} afterLabel="Current" />}
+      <form method="post" class="a-revs__restore">
+        <input type="hidden" name="rev" value={shown.id} />
+        <button class="a-btn a-btn--sm" type="submit" name="_action" value="restore-revision" data-confirm={`Restore revision #${shown.id}? The current content is kept as a revision.`}><Lucide name="Undo2" size={14} /> Restore this version</button>
+        <a class="a-btn a-btn--ghost a-btn--sm" href={`${base}#revisions`}>Close</a>
+      </form>
+    </div>
+  )}
+</section>

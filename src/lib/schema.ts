@@ -2,7 +2,7 @@
 // validation (`validateEntry`) enforces them on every save.
 
 export type Field =
-  | { name: string; label: string; type: 'text' | 'textarea' | 'url' | 'email' | 'icon' | 'color' | 'date' | 'datetime' | 'image' | 'file' | 'link'; required?: boolean; help?: string; max?: number }
+  | { name: string; label: string; type: 'text' | 'textarea' | 'url' | 'email' | 'icon' | 'color' | 'date' | 'datetime' | 'image' | 'file' | 'link'; required?: boolean; help?: string; max?: number; pattern?: { re: RegExp; message: string } }
   | { name: string; label: string; type: 'richtext'; required?: boolean; help?: string }
   | { name: string; label: string; type: 'number'; required?: boolean; help?: string; min?: number; max?: number }
   | { name: string; label: string; type: 'boolean'; help?: string }
@@ -16,7 +16,7 @@ export type Collection = {
   label: string;
   singular: string;
   kind: 'singleton' | 'list';
-  group: 'Site' | 'Home' | 'About' | 'Programme' | 'People' | 'Library' | 'News';
+  group: 'Site' | 'Home' | 'About' | 'Programme' | 'People' | 'Library' | 'News' | 'Administration';
   icon: string;
   fields: Field[];
   titleField?: string;
@@ -209,6 +209,17 @@ export const collections: Collection[] = [
     key: 'categories', label: 'Categories', singular: 'Category', kind: 'list', group: 'News', icon: 'FolderTree', titleField: 'name', slugFrom: 'name',
     fields: [{ name: 'name', label: 'Name', type: 'text', required: true }],
   },
+  {
+    key: 'releases', label: 'Release notes', singular: 'Release', kind: 'list', group: 'Administration', icon: 'Rocket', titleField: 'title', slugFrom: 'version', drafts: true, adminOnly: true, orderBy: { field: 'date', dir: 'desc' },
+    description: 'What changed in the CMS and website. Published notes appear under “What’s new”; the newest published version is shown in the sidebar.',
+    fields: [
+      { name: 'version', label: 'Version', type: 'text', required: true, help: 'Semantic version, e.g. 1.4.0', pattern: { re: /^\d+\.\d+\.\d+(-[0-9A-Za-z.-]+)?$/, message: 'Use a version like 1.4.0' } },
+      { name: 'title', label: 'Title', type: 'text', required: true },
+      { name: 'date', label: 'Release date', type: 'date', required: true },
+      { name: 'summary', label: 'Summary', type: 'textarea', max: 300 },
+      { name: 'notes', label: 'Notes', type: 'richtext', required: true },
+    ],
+  },
 ];
 
 export const collectionMap = new Map(collections.map((c) => [c.key, c]));
@@ -290,6 +301,7 @@ export function validateFields(fields: Field[], raw: Record<string, unknown>, pr
         else if ((f.type === 'image' || f.type === 'file') && !/^(\/(?!\/)|https?:\/\/)/.test(s)) errors[key] = 'Must be an uploaded file or URL';
         else if (f.type === 'link' && !/^(\/(?!\/)|#|https?:\/\/|mailto:|tel:)/i.test(s)) errors[key] = 'Use a path like /news/ or a full https:// link';
         else if (f.type === 'icon' && !/^[A-Za-z0-9]+$/.test(s)) errors[key] = 'Icon names contain letters and numbers only';
+        else if ('pattern' in f && f.pattern && !f.pattern.re.test(s)) errors[key] = f.pattern.message;
         data[f.name] = s;
       }
     }
