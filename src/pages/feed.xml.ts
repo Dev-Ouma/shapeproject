@@ -5,7 +5,7 @@ const esc = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replac
 
 export const GET: APIRoute = ({ site }) => {
   const { posts: news, categories } = loadSite();
-  const base = site ?? new URL('https://shapeproject.org');
+  const base = site ?? new URL('https://shapeproject.ouk.ac.ke');
   const items = news
     .map((p) => {
       const url = new URL(`/news/${p.slug}/`, base).href;

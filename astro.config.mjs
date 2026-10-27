@@ -6,7 +6,7 @@ import node from '@astrojs/node';
 const hosts = ['localhost', '127.0.0.1', 'shapeproject.org', 'www.shapeproject.org', ...(process.env.ALLOWED_HOSTS ?? '').split(',').map((h) => h.trim()).filter(Boolean)];
 
 export default defineConfig({
-  site: process.env.SITE_URL ?? 'https://shapeproject.org',
+  site: process.env.SITE_URL ?? 'https://shapeproject.ouk.ac.ke',
   trailingSlash: 'ignore',
   output: 'server',
   adapter: node({ mode: 'standalone' }),

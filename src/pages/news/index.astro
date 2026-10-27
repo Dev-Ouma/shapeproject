@@ -5,6 +5,6 @@ import PostArchive from '../../components/PostArchive.astro';
 const { posts: news } = loadSite();
 ---
 
-<Base title="News">
+<Base title="News" description="Latest SHAPE Project news: workshops, partner meetings, curriculum development and smart city education across East Africa.">
   <PostArchive heading="Category" label="News" posts={news.filter((p) => p.category === 'News')} />
 </Base>

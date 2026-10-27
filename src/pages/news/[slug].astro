@@ -3,6 +3,7 @@ import Base from '../../layouts/Base.astro';
 import { loadSite, listEntries, toPost } from '../../lib/content';
 import { approvedComments } from '../../lib/engagement';
 import { formatDate } from '../../lib/format';
+import { articleLd, metaDescription } from '../../lib/seo';
 
 const site = loadSite();
 let post = site.posts.find((p) => p.slug === Astro.params.slug);
@@ -12,9 +13,12 @@ if (preview) post = toPost(preview, new Map(site.categories.map((c) => [c.name, 
 if (!post) return new Response(null, { status: 404 });
 const comments = approvedComments(post.slug);
 const commentState = Astro.url.searchParams.get('comment');
+const siteUrl = Astro.site ?? new URL('https://shapeproject.ouk.ac.ke');
+const description = metaDescription(post.excerpt || post.title);
+const ld = articleLd(siteUrl, { title: post.title, description, url: new URL(Astro.url.pathname, siteUrl).href, image: new URL(post.image || '/images/slider1.png', siteUrl).href, published: post.date, modified: post.modified });
 ---
 
-<Base title={post.title} description={post.excerpt} image={post.image} type="article" published={post.date} modified={post.modified} readingMinutes={post.readingMinutes}>
+<Base title={post.title} description={description} image={post.image} jsonLd={preview ? [] : [ld]} noindex={!!preview} type="article" published={post.date} modified={post.modified} readingMinutes={post.readingMinutes}>
   {preview && <div class="preview-bar">Preview — this post is {preview.status === 'draft' ? 'a draft' : 'scheduled'} and not visible to the public.</div>}
   <article class="site-main single-post">
     <header class="page-header">

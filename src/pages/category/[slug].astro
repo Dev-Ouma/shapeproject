@@ -9,6 +9,6 @@ if (!cat) return new Response(null, { status: 404 });
 const posts = all.filter((p) => p.categories.some((x) => x.slug === cat.slug));
 ---
 
-<Base title={cat.name}>
+<Base title={cat.name} description={`SHAPE Project news in ${cat.name}: ${posts.length} article${posts.length === 1 ? '' : 's'} on smart city higher education in East Africa.`}>
   <PostArchive heading="Category" label={cat.name} posts={posts} />
 </Base>

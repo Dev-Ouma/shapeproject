@@ -5,6 +5,6 @@ import PostArchive from '../../../components/PostArchive.astro';
 const { posts: news } = loadSite();
 ---
 
-<Base title="admin">
+<Base title="admin" noindex>
   <PostArchive heading="Author" label="admin" posts={news} />
 </Base>

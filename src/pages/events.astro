@@ -2,8 +2,11 @@
 import { loadSite } from '../lib/content';
 import Base from '../layouts/Base.astro';
 import Lucide from '../components/Lucide.astro';
+import { eventLd } from '../lib/seo';
 import { wpStatus as _wpStatus, statusLabel } from '../lib/status';
 const { events, workPackages, currentMonth: CURRENT_PROJECT_MONTH, projectMonths: PROJECT_MONTHS, projectStart } = loadSite();
+// Only events with confirmed full dates qualify as schema.org Events (month-only plans do not).
+const eventsLd = events.filter((e) => !e.planned && /^\d{4}-\d{2}-\d{2}/.test(e.start)).map((e) => eventLd(Astro.site ?? new URL('https://shapeproject.ouk.ac.ke'), e));
 const wpStatus = (w: { start: number; end: number }) => _wpStatus(w, CURRENT_PROJECT_MONTH);
 
 const months = Array.from({ length: PROJECT_MONTHS }, (_, i) => i + 1);
@@ -48,7 +51,7 @@ const yr = (iso: string) => iso.slice(0, 4);
 const typeIcon = { Meeting: 'Users', Launch: 'Rocket', Hackathon: 'Code', Training: 'GraduationCap', Pilot: 'FlaskConical', Conference: 'Mic', Workshop: 'Presentation' } as const;
 ---
 
-<Base title="Events" description="SHAPE events, milestones and the 36-month project timeline.">
+<Base title="Events" description="SHAPE events and milestones: workshops, partner meetings and trainings, plus the 36-month project timeline as an interactive Gantt chart." jsonLd={eventsLd}>
   <section class="section wp-section">
     <div class="container">
       <header class="section-head">

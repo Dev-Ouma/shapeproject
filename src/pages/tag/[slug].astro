@@ -9,6 +9,6 @@ if (!posts.length) return new Response(null, { status: 404 });
 const name = posts[0].tags.find((t) => t.slug === Astro.params.slug)!.name;
 ---
 
-<Base title={name}>
+<Base title={name} noindex description={`SHAPE Project articles tagged ${name}.`}>
   <PostArchive heading="Tag" label={name} posts={posts} />
 </Base>
