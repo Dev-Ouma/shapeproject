@@ -1,0 +1,39 @@
+# Public, unauthenticated HawkScan of the LIVE site. Skips the CMS and the form/beacon endpoints so the
+# scan cannot flood the inbox, send emails, skew analytics or lock real accounts.
+# Run:  hawk scan stackhawk-live.yml
+app:
+  applicationId: ${APP_ID:3869a2c8-999f-4cb3-a56e-c21cfbecc6b3}
+  env: ${APP_ENV:Live}
+  host: ${APP_HOST:https://shapeproject.ouk.ac.ke}
+  excludePaths:
+    - "/admin.*"
+    - "/api/.*"
+    - "/uploads/.*"
+    - "/_astro/.*"
+    - "/downloads/.*"
+hawk:
+  spider:
+    base: true
+    maxDurationMinutes: 5
+    seedPaths:
+      - /
+      - /about/
+      - /partners/
+      - /project-team/
+      - /deliverables/
+      - /materials/
+      - /events/
+      - /news/
+      - /contact/
+      - /project-book/
+      - /search/?s=smart
+      - /sitemap.xml
+      - /robots.txt
+      - /feed.xml
+  scan:
+    concurrentRequests: 5
+tags:
+  - name: _STACKHAWK_AGENT
+    value: ${HAWK_AGENT:none}
+  - name: _STACKHAWK_GIT_COMMIT_SHA
+    value: ${COMMIT_SHA:none}

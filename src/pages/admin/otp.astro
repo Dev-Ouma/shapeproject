@@ -1,6 +1,6 @@
 ---
 import AuthShell from '../../components/admin/AuthShell.astro';
-import { SESSION_COOKIE, completeMfa, audit, otpLocked, otpFailure, otpSuccess } from '../../lib/auth';
+import { SESSION_COOKIE, sessionCookie, completeMfa, audit, otpLocked, otpFailure, otpSuccess } from '../../lib/auth';
 import { otpEnabled, beginEnrolment, confirmEnrolment, verifyLoginCode, otpauthUrl, qrSvg } from '../../lib/otp';
 
 const user = Astro.locals.pendingUser;
@@ -22,7 +22,7 @@ if (Astro.request.method === 'POST') {
     recovery = confirmEnrolment(user.id, code);
     if (recovery) {
       otpSuccess(user.id);
-      completeMfa(token, user.id);
+      Astro.cookies.set(SESSION_COOKIE, completeMfa(token, user.id), sessionCookie(Astro.url.protocol === 'https:'));
       audit(user.id, 'otp.enrolled');
     } else {
       otpFailure(user.id);
@@ -32,7 +32,7 @@ if (Astro.request.method === 'POST') {
     const how = verifyLoginCode(user.id, code);
     if (how) {
       otpSuccess(user.id);
-      completeMfa(token, user.id);
+      Astro.cookies.set(SESSION_COOKIE, completeMfa(token, user.id), sessionCookie(Astro.url.protocol === 'https:'));
       audit(user.id, how === 'recovery' ? 'login.recovery-code' : 'login');
       return Astro.redirect(safeNext, 303);
     }

@@ -9,7 +9,17 @@ export type Role = 'admin' | 'editor';
 export type User = { id: number; email: string; name: string; role: Role; disabled: number; created_at: string; last_login: string | null };
 
 export const SESSION_COOKIE = 'shape_session';
-const SESSION_DAYS = 14;
+/*
+ * Session policy (OWASP ASVS V3): opaque random tokens, stored only as SHA-256 hashes; HttpOnly, Secure,
+ * SameSite=Lax cookie; signed out after SESSION_IDLE_MINUTES without activity (default 60) and after
+ * SESSION_ABSOLUTE_HOURS regardless (default 12); token rotated when the second factor is passed; all of a
+ * user's sessions revoked on password change, role change or disabling.
+ */
+export const SESSION_IDLE_MS = Math.max(5, Number(process.env.SESSION_IDLE_MINUTES ?? 60)) * 60_000;
+export const SESSION_ABSOLUTE_MS = Math.max(1, Number(process.env.SESSION_ABSOLUTE_HOURS ?? 12)) * 3600_000;
+const PENDING_MFA_MS = 10 * 60_000;
+// last_seen is written at most this often, so every request does not cost a database write.
+const TOUCH_EVERY_MS = 60_000;
 const SCRYPT = { N: 2 ** 15, r: 8, p: 1, maxmem: 64 * 1024 * 1024 };
 
 const sha256 = (s: string) => createHash('sha256').update(s).digest('hex');
@@ -65,7 +75,8 @@ export function updateUser(id: number, fields: { role?: Role; disabled?: boolean
   const u = getUser(id);
   if (!u) return;
   getDb().prepare('UPDATE users SET role = ?, disabled = ?, name = ? WHERE id = ?').run(fields.role ?? u.role, fields.disabled === undefined ? u.disabled : fields.disabled ? 1 : 0, fields.name ?? u.name, id);
-  if (fields.disabled) getDb().prepare('DELETE FROM sessions WHERE user_id = ?').run(id);
+  // Disabling or changing the role ends every session, so new permissions apply immediately.
+  if (fields.disabled || (fields.role && fields.role !== u.role)) getDb().prepare('DELETE FROM sessions WHERE user_id = ?').run(id);
 }
 
 export function setPassword(id: number, password: string) {
@@ -123,19 +134,41 @@ export function login(email: string, password: string, meta: { ip: string; userA
   // A session that still needs its second factor lives only 10 minutes until the code is entered.
   getDb()
     .prepare('INSERT INTO sessions (id, user_id, expires_at, ip, user_agent, mfa_ok) VALUES (?, ?, ?, ?, ?, ?)')
-    .run(sha256(token), user!.id, Date.now() + (needsOtp ? 10 * 60 * 1000 : SESSION_DAYS * 864e5), meta.ip, meta.userAgent.slice(0, 200), needsOtp ? 0 : 1);
+    .run(sha256(token), user!.id, Date.now() + (needsOtp ? PENDING_MFA_MS : SESSION_ABSOLUTE_MS), meta.ip, meta.userAgent.slice(0, 200), needsOtp ? 0 : 1);
+  getDb().prepare('UPDATE sessions SET last_seen = ?, started_at = ? WHERE id = ?').run(Date.now(), Date.now(), sha256(token));
   if (!needsOtp) getDb().prepare("UPDATE users SET last_login = datetime('now') WHERE id = ?").run(user!.id);
   return { ok: true, token, user: getUser(user!.id)!, needsOtp };
 }
 
-export function sessionInfo(token: string | undefined): { user: User; mfaOk: boolean } | undefined {
+export type SessionEnd = 'idle' | 'expired';
+export type ActiveSession = { user: User; mfaOk: boolean; idleEndsAt: number };
+
+/**
+ * Resolve a session token. Expired or idle sessions are deleted on sight, and `onEnd` learns why. Unless
+ * `touch` is false, a valid session's activity clock is refreshed (status polls pass false so that an
+ * open but untouched tab cannot keep a session alive).
+ */
+export function sessionInfo(token: string | undefined, opts: { touch?: boolean; now?: number; onEnd?: (why: SessionEnd) => void } = {}): ActiveSession | undefined {
   if (!token) return undefined;
+  const now = opts.now ?? Date.now();
+  const id = sha256(token);
   const row = getDb()
-    .prepare('SELECT u.id, u.email, u.name, u.role, u.disabled, u.created_at, u.last_login, s.expires_at, s.mfa_ok FROM sessions s JOIN users u ON u.id = s.user_id WHERE s.id = ?')
-    .get(sha256(token)) as (User & { expires_at: number; mfa_ok: number }) | undefined;
-  if (!row || row.disabled || row.expires_at < Date.now()) return undefined;
-  const { expires_at, mfa_ok, ...user } = row;
-  return { user, mfaOk: !!mfa_ok };
+    .prepare('SELECT u.id, u.email, u.name, u.role, u.disabled, u.created_at, u.last_login, s.expires_at, s.mfa_ok, s.last_seen, s.started_at FROM sessions s JOIN users u ON u.id = s.user_id WHERE s.id = ?')
+    .get(id) as (User & { expires_at: number; mfa_ok: number; last_seen: number; started_at: number }) | undefined;
+  if (!row) return undefined;
+  const idle = !!row.mfa_ok && now - row.last_seen > SESSION_IDLE_MS;
+  if (row.disabled || row.expires_at < now || now - row.started_at > SESSION_ABSOLUTE_MS || idle) {
+    getDb().prepare('DELETE FROM sessions WHERE id = ?').run(id);
+    if (!row.disabled) opts.onEnd?.(idle ? 'idle' : 'expired');
+    return undefined;
+  }
+  let lastSeen = row.last_seen;
+  if (opts.touch !== false && now - row.last_seen >= TOUCH_EVERY_MS) {
+    getDb().prepare('UPDATE sessions SET last_seen = ? WHERE id = ?').run(now, id);
+    lastSeen = now;
+  }
+  const { expires_at, mfa_ok, last_seen, started_at, ...user } = row;
+  return { user, mfaOk: !!mfa_ok, idleEndsAt: Math.min(lastSeen + SESSION_IDLE_MS, started_at + SESSION_ABSOLUTE_MS, expires_at) };
 }
 
 /** The signed-in user, only once any required second factor has been passed. */
@@ -144,10 +177,37 @@ export function userForSession(token: string | undefined): User | undefined {
   return s?.mfaOk ? s.user : undefined;
 }
 
-/** Second factor passed: upgrade the session to full length. */
-export function completeMfa(token: string, userId: number) {
-  getDb().prepare('UPDATE sessions SET mfa_ok = 1, expires_at = ? WHERE id = ?').run(Date.now() + SESSION_DAYS * 864e5, sha256(token));
+/**
+ * Second factor passed: replace the pending session with a full session under a NEW token (prevents
+ * session fixation). Returns the new token, which the caller must set as the cookie.
+ */
+export function completeMfa(token: string, userId: number): string {
+  const fresh = randomBytes(32).toString('base64url');
+  const now = Date.now();
+  getDb()
+    .prepare('UPDATE sessions SET id = ?, mfa_ok = 1, expires_at = ?, last_seen = ?, started_at = ? WHERE id = ?')
+    .run(sha256(fresh), now + SESSION_ABSOLUTE_MS, now, now, sha256(token));
   getDb().prepare("UPDATE users SET last_login = datetime('now') WHERE id = ?").run(userId);
+  return fresh;
+}
+
+/** Session cookie options: HttpOnly, SameSite=Lax, Secure on HTTPS, never outliving the absolute limit. */
+export const sessionCookie = (secure: boolean) => ({ path: '/', httpOnly: true, sameSite: 'lax' as const, secure, maxAge: Math.floor(SESSION_ABSOLUTE_MS / 1000) });
+
+/** Active sessions of a user, for the account page. `id` is the stored hash, never the token. */
+export function listSessions(userId: number) {
+  return getDb()
+    .prepare('SELECT id, ip, user_agent, created_at, last_seen FROM sessions WHERE user_id = ? AND mfa_ok = 1 AND last_seen > ? ORDER BY last_seen DESC')
+    .all(userId, Date.now() - SESSION_IDLE_MS) as { id: string; ip: string | null; user_agent: string | null; created_at: string; last_seen: number }[];
+}
+
+export function revokeSession(userId: number, sessionId: string) {
+  getDb().prepare('DELETE FROM sessions WHERE user_id = ? AND id = ?').run(userId, sessionId);
+}
+
+/** Housekeeping: drop sessions past their idle or absolute limit (resolution enforces both anyway). */
+export function purgeSessions(now = Date.now()) {
+  getDb().prepare('DELETE FROM sessions WHERE expires_at < ? OR (mfa_ok = 1 AND last_seen < ?) OR started_at < ?').run(now, now - SESSION_IDLE_MS, now - SESSION_ABSOLUTE_MS);
 }
 
 /** Rate limiting for OTP codes, sharing the login limiter. */
@@ -165,7 +225,7 @@ export function logout(token: string | undefined) {
   if (token) getDb().prepare('DELETE FROM sessions WHERE id = ?').run(sha256(token));
 }
 
-export const sessionMaxAge = SESSION_DAYS * 86400;
+export const sessionMaxAge = Math.floor(SESSION_ABSOLUTE_MS / 1000);
 
 /* ---------------- invites ---------------- */
 

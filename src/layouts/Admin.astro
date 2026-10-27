@@ -39,7 +39,7 @@ const active = (href: string) => (href === '/admin' ? path === '/admin' || path 
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Poppins:wght@600;700;800&display=swap" rel="stylesheet" />
   </head>
-  <body class="admin">
+  <body class="admin" data-idle-ends={Astro.locals.idleEndsAt}>
     <div class="a-shell">
       <aside class="a-side" id="admin-side" data-side aria-label="Admin navigation">
         <button class="a-side__close" type="button" data-side-close aria-label="Close menu"><Lucide name="X" size={18} /></button>
@@ -81,6 +81,14 @@ const active = (href: string) => (href === '/admin' ? path === '/admin' || path 
         {release && <a class="a-version" href={`/admin/releases#v${release.version}`} title={`Version ${release.version}: ${release.title}`}><Lucide name="Rocket" size={14} /> <span class="a-nav__t">SHAPE CMS v{release.version}</span></a>}
       </aside>
       <div class="a-scrim" data-scrim hidden></div>
+      <dialog class="a-idle" data-idle aria-labelledby="idle-title">
+        <h2 id="idle-title">Still there?</h2>
+        <p>For security you will be signed out in <strong data-idle-count>5:00</strong> because there has been no activity.</p>
+        <div class="a-idle__bar">
+          <form method="post" action="/admin/logout"><button class="a-btn a-btn--ghost" type="submit">Sign out now</button></form>
+          <button class="a-btn" type="button" data-idle-stay>Stay signed in</button>
+        </div>
+      </dialog>
       <div class="a-main">
         <header class="a-top">
           <div style="display:flex;align-items:center;gap:10px">
@@ -109,6 +117,7 @@ const active = (href: string) => (href === '/admin' ? path === '/admin' || path 
     </div>
     <script>
       import '../scripts/password-toggle';
+      import '../scripts/idle-timeout';
       // Confirmation prompts for destructive buttons (no inline handlers, so CSP can forbid inline scripts).
       document.addEventListener('click', (e) => {
         const b = (e.target as HTMLElement).closest<HTMLElement>('[data-confirm]');

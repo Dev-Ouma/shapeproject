@@ -51,7 +51,7 @@ async function login(page: Page, email = ADMIN.email, password = ADMIN.password,
 }
 
 async function logout(page: Page) {
-  await page.click('form[action="/admin/logout"] button');
+  await page.click('.a-top__user form[action="/admin/logout"] button');
   await expect(page).toHaveURL(/\/admin\/login/);
 }
 
@@ -634,4 +634,30 @@ test('logout ends the session', async ({ page }) => {
   await logout(page);
   await page.goto('/admin');
   await expect(page).toHaveURL(/\/admin\/login/);
+});
+
+test('idle sessions warn at 55 minutes and sign out at 60 with a clear message', async ({ page }) => {
+  const { DatabaseSync } = await import('node:sqlite');
+  await login(page);
+  const db = new DatabaseSync('var/e2e/test.db');
+  const age = (minutes: number) => db.prepare('UPDATE sessions SET last_seen = ? WHERE mfa_ok = 1').run(Date.now() - minutes * 60_000);
+  // Loading a page is activity; then 56 idle minutes pass in the browser: the countdown appears.
+  await page.clock.install();
+  await page.goto('/admin/account');
+  await page.clock.fastForward('56:00');
+  await expect(page.locator('[data-idle]')).toBeVisible();
+  await expect(page.locator('[data-idle-count]')).toHaveText(/^[0-4]:[0-5]\d$/);
+  await page.click('[data-idle-stay]');
+  await expect(page.locator('[data-idle]')).toBeHidden();
+  const status = await (await page.request.get('/admin/api/session')).json();
+  expect(status.idleEndsAt - Date.now()).toBeGreaterThan(58 * 60_000);
+  // The account page lists this session.
+  await page.goto('/admin/account');
+  await expect(page.locator('.acc-sessions')).toContainText('This device');
+  // 61 minutes idle: the next request lands on the sign-in page with the reason.
+  age(61);
+  await page.goto('/admin/content/posts');
+  await expect(page).toHaveURL(/\/admin\/login\?.*ended=idle/);
+  await expect(page.getByRole('status')).toContainText('60 minutes without activity');
+  db.close();
 });

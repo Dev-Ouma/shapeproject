@@ -4,5 +4,7 @@ declare namespace App {
   interface Locals {
     user?: import('./lib/auth').User;
     pendingUser?: import('./lib/auth').User;
+    /** When the signed-in session times out for inactivity (ms since epoch). */
+    idleEndsAt?: number;
   }
 }

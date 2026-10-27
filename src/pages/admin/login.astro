@@ -1,7 +1,7 @@
 ---
 import AuthShell from '../../components/admin/AuthShell.astro';
 import { clientIp } from '../../lib/analytics';
-import { login, SESSION_COOKIE, sessionMaxAge, audit, countUsers } from '../../lib/auth';
+import { login, SESSION_COOKIE, sessionCookie, audit, countUsers } from '../../lib/auth';
 
 const next = Astro.url.searchParams.get('next');
 const safeNext = next && next.startsWith('/admin') && !next.startsWith('//') ? next : '/admin';
@@ -14,7 +14,7 @@ if (Astro.request.method === 'POST') {
   email = String(form.get('email') ?? '');
   const r = login(email, String(form.get('password') ?? ''), { ip: clientIp(Astro.request, Astro.clientAddress), userAgent: Astro.request.headers.get('user-agent') ?? '' });
   if (r.ok) {
-    Astro.cookies.set(SESSION_COOKIE, r.token, { path: '/', httpOnly: true, sameSite: 'lax', secure: Astro.url.protocol === 'https:', maxAge: sessionMaxAge });
+    Astro.cookies.set(SESSION_COOKIE, r.token, sessionCookie(Astro.url.protocol === 'https:'));
     audit(r.user.id, r.needsOtp ? 'login.password-ok' : 'login');
     return Astro.redirect(r.needsOtp ? `/admin/otp?next=${encodeURIComponent(safeNext)}` : safeNext, 303);
   }
@@ -28,6 +28,8 @@ const noUsers = countUsers() === 0;
   <h1>Sign in to SHAPE CMS</h1>
   <p class="a-sub">Manage the SHAPE project website.</p>
   {noUsers && <p class="a-flash a-flash--err">No accounts exist yet. Create the first admin on the server with <code>npm run create-admin</code>.</p>}
+  {Astro.url.searchParams.get('ended') === 'idle' && !error && <p class="a-flash a-flash--ok" role="status">You were signed out after 60 minutes without activity. Sign in again to continue.</p>}
+  {Astro.url.searchParams.get('ended') === 'expired' && !error && <p class="a-flash a-flash--ok" role="status">Your session has ended. Please sign in again.</p>}
   {Astro.url.searchParams.has('lockdown') && !error && <p class="a-flash a-flash--err" role="status">The CMS is in lockdown. Only administrators can sign in.</p>}
   {error && <p class="a-flash a-flash--err" role="alert">{error}</p>}
   <form method="post" class="a-form">

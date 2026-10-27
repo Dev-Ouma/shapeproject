@@ -180,6 +180,13 @@ const MIGRATIONS: string[] = [
     'notes', '<h3>New</h3><ul><li><strong>Administration</strong> section: system overview, audit trail with filters, diffs and CSV export, recycle bin with 30-day retention, release notes, maintenance and lockdown switches.</li><li><strong>Revisions</strong> on every save, with compare and one-click restore.</li><li><strong>Duplicate</strong> any item from its list or editor.</li><li>Richer dashboard: content mix, publishing activity, engagement trends and project timeline.</li></ul><h3>Already in place</h3><ul><li>First-party, cookieless analytics with live visitors and CSV export.</li><li>Inbox with folders, search, stars, archive and reply threads.</li><li>Two-step sign-in (authenticator app) for every account.</li><li>Comments moderation, media library, Project Book PDF.</li></ul>'
   ));
   `,
+  // 6 — session policy: idle timeout and absolute lifetime are enforced from these timestamps (ms)
+  `
+  ALTER TABLE sessions ADD COLUMN last_seen INTEGER NOT NULL DEFAULT 0;
+  ALTER TABLE sessions ADD COLUMN started_at INTEGER NOT NULL DEFAULT 0;
+  UPDATE sessions SET last_seen = CAST(strftime('%s','now') AS INTEGER) * 1000, started_at = CAST(strftime('%s','now') AS INTEGER) * 1000;
+  CREATE INDEX sessions_user ON sessions(user_id);
+  `,
 ];
 
 let db: DatabaseSync | undefined;

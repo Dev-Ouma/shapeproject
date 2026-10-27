@@ -65,6 +65,8 @@ server {
   server_name $DOMAIN;
   client_max_body_size 25m;
   server_tokens off;
+  # Only the methods the site uses; TRACE, OPTIONS and the rest are refused uniformly (no proxy fingerprinting).
+  if (\$request_method !~ ^(GET|HEAD|POST)\$) { return 405; }
 
   location /uploads/ {
     alias $APP/shared/uploads/;

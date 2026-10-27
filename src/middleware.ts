@@ -1,5 +1,5 @@
 import { defineMiddleware } from 'astro:middleware';
-import { SESSION_COOKIE, sessionInfo, can, bootstrapAdmin, logout } from './lib/auth';
+import { SESSION_COOKIE, sessionInfo, can, bootstrapAdmin, logout, purgeSessions, type SessionEnd } from './lib/auth';
 import { loadSite } from './lib/content';
 import { clientIp } from './lib/analytics';
 import { getLockdown, getMaintenance, maintenanceBlocks, requestContext, retryAfter } from './lib/system';
@@ -54,7 +54,14 @@ export const onRequest = defineMiddleware((ctx, next) => {
 const handle: Parameters<typeof defineMiddleware>[0] = async (ctx, next) => {
   bootstrapAdmin();
   const path = ctx.url.pathname;
-  const session = sessionInfo(ctx.cookies.get(SESSION_COOKIE)?.value);
+  // The session status poll must not count as activity, or an idle open tab would never time out.
+  let ended: SessionEnd | undefined;
+  const session = sessionInfo(ctx.cookies.get(SESSION_COOKIE)?.value, {
+    touch: !(path === '/admin/api/session' && ctx.request.method === 'GET'),
+    onEnd: (why) => (ended = why),
+  });
+  if (ended) ctx.cookies.delete(SESSION_COOKIE, { path: '/' });
+  ctx.locals.idleEndsAt = session?.mfaOk ? session.idleEndsAt : undefined;
   const user = session?.mfaOk ? session.user : undefined;
   ctx.locals.user = user;
   ctx.locals.pendingUser = session && !session.mfaOk ? session.user : undefined;
@@ -62,7 +69,10 @@ const handle: Parameters<typeof defineMiddleware>[0] = async (ctx, next) => {
   if (path.startsWith('/admin')) {
     const isPublic = PUBLIC_ADMIN.some((r) => r.test(path));
     if (ctx.locals.pendingUser && !OTP_PATHS.some((r) => r.test(path))) return ctx.redirect('/admin/otp', 303);
-    if (!isPublic && !user && !(ctx.locals.pendingUser && OTP_PATHS.some((r) => r.test(path)))) return ctx.redirect(`/admin/login?next=${encodeURIComponent(path + ctx.url.search)}`, 303);
+    if (!isPublic && !user && !(ctx.locals.pendingUser && OTP_PATHS.some((r) => r.test(path)))) {
+      if (path.startsWith('/admin/api/')) return new Response(JSON.stringify({ signedIn: false, ended: ended ?? null }), { status: 401, headers: { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' } });
+      return ctx.redirect(`/admin/login?next=${encodeURIComponent(path + ctx.url.search)}${ended ? `&ended=${ended}` : ''}`, 303);
+    }
     if (user && ADMIN_ONLY.some((r) => r.test(path)) && !can(user, 'admin')) return new Response('Forbidden: admins only', { status: 403 });
     const lock = getLockdown();
     if (lock.on) {
@@ -80,7 +90,10 @@ const handle: Parameters<typeof defineMiddleware>[0] = async (ctx, next) => {
         return new Response('The CMS is read-only during lockdown. Lift the lockdown under Administration → Maintenance & lockdown.', { status: 423, headers: { 'Content-Type': 'text/plain; charset=utf-8', 'Cache-Control': 'no-store' } });
       }
     }
-    if (user) sweepTrash();
+    if (user) {
+      sweepTrash();
+      if (Math.random() < 0.02) purgeSessions();
+    }
   } else if (path !== '/healthz' && !path.startsWith('/uploads/')) {
     if (ctx.request.method === 'POST' && PUBLIC_WRITES.test(path) && getLockdown().on) {
       return new Response('Submissions are temporarily disabled. Please try again later.', { status: 503, headers: { 'Content-Type': 'text/plain; charset=utf-8', 'Retry-After': '3600', 'Cache-Control': 'no-store' } });

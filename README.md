@@ -10,6 +10,7 @@ The site is an [Astro 5](https://astro.build) server-rendered app. Every page re
 ## Contents
 
 - [Features](#features)
+- [Technology stack](#technology-stack)
 - [Quick start](#quick-start)
 - [Project layout](#project-layout)
 - [The CMS](#the-cms)
@@ -38,9 +39,44 @@ The site is an [Astro 5](https://astro.build) server-rendered app. Every page re
 - Sign-in with password plus **two-step verification** (authenticator app TOTP with recovery codes). Roles: **admin** and **editor**.
 - Branded account emails (invitation and welcome) sent through SMTP.
 
+## Technology stack
+
+| Layer | Technology |
+| --- | --- |
+| **Language** | TypeScript (Astro strict config) on **Node.js 24 LTS** in production (Node 22.12 or newer is the minimum Astro supports) |
+| **Framework** | **Astro 7** in server-rendered (SSR) mode with the **@astrojs/node 11** standalone adapter — one Node process serves the site, the CMS and the APIs |
+| **Frontend** | Astro components rendering semantic HTML; plain CSS with design tokens (custom properties) in `global.css`, `admin.css` and `book.css`; small vanilla TypeScript modules for interactivity — no client framework |
+| **Backend** | Astro pages, API routes and middleware (`src/middleware.ts`) for routing, security headers, sign-in and roles; business logic in `src/lib/` |
+| **Database** | **SQLite** through Node's built-in `node:sqlite` module (WAL journal, foreign keys, versioned migrations in `src/lib/db.ts`). Content is stored as JSON entries per collection; no ORM |
+| **CMS** | Custom, schema-driven (`src/lib/schema.ts`): forms, validation and lists are generated from collection definitions. Rich text with **TipTap 3**; HTML cleaned with **sanitize-html** |
+| **Authentication** | scrypt password hashing (Node `crypto`), opaque session tokens stored as SHA-256 hashes, **TOTP** two-step verification (RFC 6238) with recovery codes, QR codes via **qrcode**, invitation links, roles (admin, editor) |
+| **Images and media** | **sharp 0.35** (libvips) for resizing, with an **ImageMagick** fallback on servers where sharp cannot run |
+| **Email** | **Nodemailer 10** over SMTP (Google Workspace relay `smtp-relay.gmail.com:587`, STARTTLS) with branded HTML templates |
+| **PDF** | **Playwright** with headless Chromium renders the Executive Brief to PDF |
+| **Analytics** | First-party and cookieless: a small beacon script (`navigator.sendBeacon`) and SQL reports; charts are hand-built SVG with monotone cubic curves (no chart library) |
+| **Icons and fonts** | **Lucide** icons (inlined SVG); **Poppins** (headings) and **Inter** (text) from Google Fonts |
+| **Web server and hosting** | **Nginx** reverse proxy with **Let's Encrypt** TLS (HSTS), **systemd** service, Ubuntu 22.04 LTS VPS |
+| **Testing and quality** | **Vitest** (unit), **Playwright** (end-to-end, real browser), **StackHawk HawkScan** (DAST security scans), `npm audit` |
+
+### UI and UX
+
+- **Design language**: the Open University of Kenya palette — teal `#037b90` as the primary colour, coral `#ff7f50` for calls to action and highlights, on white — with Poppins headings and Inter body text. Chart series use a colour-blind-safe palette (teal, coral, violet) that was checked with a palette validator.
+- **Public site**: a faithful rebuild of the original layout with a hero slider, card grids, hover effects on thematic areas and partners, an interactive Gantt timeline with date tooltips, and a print-ready Executive Brief.
+- **CMS**: a calm, task-focused admin interface — collapsible sidebar (icons only on desktop, slide-in drawer on phones), dashboards with KPI cards and sparklines, an email-style inbox, and empty states, confirmations and status messages throughout.
+- **Responsive and accessible**: works from 390 px phones to wide desktops without horizontal scrolling; semantic landmarks, labelled controls, visible keyboard focus, keyboard-operable charts with table views, and colour never used as the only signal.
+
+### Motion and animation
+
+All motion is CSS transitions and keyframes plus a small vanilla TypeScript module (`src/scripts/motion.ts`) using `IntersectionObserver` — no animation library. Everything is switched off when the visitor's system asks for reduced motion (`prefers-reduced-motion`).
+
+- Headings reveal word by word; cards and sections fade and slide in as they scroll into view, with staggered timing.
+- Numbers count up when they appear; the hero image slowly zooms (Ken Burns effect).
+- A progress bar runs along the top on every page change and form submission; a short branded loader appears on the first visit.
+- Hover effects on cards and links; a pulsing "live" dot in analytics; easing curves such as `cubic-bezier(0.22, 1, 0.36, 1)` for natural movement.
+
 ## Quick start
 
-Requirements: **Node.js 24 or newer** (the app uses the built-in `node:sqlite` module) and npm.
+Requirements: **Node.js 24 LTS or newer** (the app uses the built-in `node:sqlite` module) and npm.
 
 ```sh
 npm install
@@ -117,6 +153,7 @@ Settings come from environment variables. In production they live in `/var/www/s
 | `ALLOWED_HOSTS` | Extra host names accepted for form submissions |
 | `DB_PATH`, `UPLOAD_DIR` | SQLite file and uploaded media folder |
 | `REQUIRE_OTP` | `false` disables two-step verification (development only) |
+| `SESSION_IDLE_MINUTES`, `SESSION_ABSOLUTE_HOURS` | Sign out after this much inactivity (default 60 minutes) and after this long in any case (default 12 hours) |
 | `BOOTSTRAP_ADMIN_EMAIL`, `_NAME`, `_PASSWORD` | Create the first admin when no users exist |
 | `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS` | Outgoing mail. Production uses the Google Workspace relay `smtp-relay.gmail.com:587`, which trusts the server's IP and needs no username or password |
 | `SMTP_FROM`, `SMTP_HELO` | Sender (`SHAPE Project <shape@ouk.ac.ke>`) and the name announced to the mail server |
@@ -161,7 +198,8 @@ The script fetches `main` from GitHub, installs and builds in a new release fold
 ## Security
 
 - Strict Content Security Policy: no inline scripts or `<style>` blocks; all client code is bundled. Security headers are set in `src/middleware.ts` and Nginx.
-- Passwords are hashed with scrypt; session tokens are stored as SHA-256 hashes; sign-in is rate-limited and locks after repeated failures; two-step verification with replay protection.
+- Passwords are hashed with scrypt; sign-in is rate-limited and locks after repeated failures; two-step verification with replay protection.
+- **Sessions**: random 256-bit tokens, stored only as SHA-256 hashes; `HttpOnly`, `Secure` and `SameSite=Lax` cookie. A session ends after **60 minutes without activity** (a countdown warns 5 minutes before, with "Stay signed in") and after **12 hours** in any case. The token is replaced when two-step verification succeeds (no session fixation). Changing a password, role or access signs that person out everywhere. Users can see and end their own sessions under *My account*. Configure with `SESSION_IDLE_MINUTES` and `SESSION_ABSOLUTE_HOURS`.
 - Rich text is sanitised, JSON embedded in pages is escaped, links reject `javascript:` URLs, uploads are checked by their file signature, and the CSV exports guard against spreadsheet formulas.
 - Same-origin checks on every form post; admin-only areas are enforced on the server.
 - Report security issues privately to shape@ouk.ac.ke.

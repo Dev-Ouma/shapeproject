@@ -299,8 +299,10 @@ describe('one-time passwords', () => {
       if (!r.ok) return;
       expect(auth.userForSession(r.token)).toBeUndefined();
       expect(auth.sessionInfo(r.token)?.mfaOk).toBe(false);
-      auth.completeMfa(r.token, r.user.id);
-      expect(auth.userForSession(r.token)?.email).toBe('p@b.org');
+      const fresh = auth.completeMfa(r.token, r.user.id);
+      // The token is rotated: the pre-OTP token is dead, the new one is a full session.
+      expect(auth.sessionInfo(r.token)).toBeUndefined();
+      expect(auth.userForSession(fresh)?.email).toBe('p@b.org');
     } finally {
       process.env.REQUIRE_OTP = 'false';
     }

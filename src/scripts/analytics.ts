@@ -69,8 +69,17 @@ document.addEventListener('click', (e) => {
   send({ type: 'click', target: el.dataset.track || undefined, label });
 }, { capture: true });
 
-// Searches: pages dispatch `shape:search` with the term and how many results it found.
-addEventListener('shape:search', ((e: CustomEvent<{ q: string; results: number }>) => {
-  const q = e.detail.q.trim();
-  if (q.length >= 2) send({ type: 'search', label: q, value: e.detail.results });
-}) as EventListener);
+// Searches: the search modal dispatches `shape:search`; the search page queues on window.__shapeSearch
+// (it may run before or after this script).
+const reportSearch = (d: { q: string; results: number }) => {
+  const q = d.q.trim();
+  // Sent at once: a visitor often leaves the results page straight away.
+  if (q.length >= 2) send({ type: 'search', label: q, value: d.results }, true);
+};
+addEventListener('shape:search', ((e: CustomEvent<{ q: string; results: number }>) => reportSearch(e.detail)) as EventListener);
+const drainSearches = () => {
+  const w = window as unknown as { __shapeSearch?: { q: string; results: number }[] };
+  for (const d of w.__shapeSearch?.splice(0) ?? []) reportSearch(d);
+};
+addEventListener('shape:search-queued', drainSearches);
+drainSearches();

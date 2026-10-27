@@ -31,8 +31,12 @@ const index = [
     const out = document.querySelector<HTMLElement>('[data-results]')!;
     const terms = q.toLowerCase().split(/\s+/).filter(Boolean);
     const hits = terms.length ? index.filter((e) => { const hay = `${e.title} ${e.excerpt} ${e.body}`.toLowerCase(); return terms.every((t) => hay.includes(t)); }) : [];
-    // After load, so the analytics listener (registered later in the layout) is ready.
-    if (q) addEventListener('load', () => dispatchEvent(new CustomEvent('shape:search', { detail: { q, results: hits.length } })));
+    // Queued for the analytics script, whichever of the two runs first.
+    if (q) {
+      const w = window as unknown as { __shapeSearch?: { q: string; results: number }[] };
+      (w.__shapeSearch ??= []).push({ q, results: hits.length });
+      dispatchEvent(new Event('shape:search-queued'));
+    }
     if (!hits.length) {
       out.innerHTML = '<p>It seems we can’t find what you’re looking for.</p>';
     } else {

@@ -1,14 +1,22 @@
 ---
 import Admin from '../../layouts/Admin.astro';
 import { otpEnabled, recoveryCodesLeft } from '../../lib/otp';
-import { findUserByEmail, verifyPassword, passwordProblem, setPassword, audit, updateUser, logoutOthers, SESSION_COOKIE } from '../../lib/auth';
+import { findUserByEmail, verifyPassword, passwordProblem, setPassword, audit, updateUser, logoutOthers, SESSION_COOKIE, sessionHash, listSessions, revokeSession, SESSION_IDLE_MS, SESSION_ABSOLUTE_MS } from '../../lib/auth';
 
 const me = Astro.locals.user!;
 let error = '';
 let ok = '';
 if (Astro.request.method === 'POST') {
   const f = await Astro.request.formData();
-  if (f.get('action') === 'name') {
+  if (f.get('action') === 'revoke') {
+    revokeSession(me.id, String(f.get('session') ?? ''));
+    audit(me.id, 'account.session.revoke');
+    ok = 'That session was signed out.';
+  } else if (f.get('action') === 'revoke-others') {
+    logoutOthers(me.id, Astro.cookies.get(SESSION_COOKIE)?.value);
+    audit(me.id, 'account.session.revoke-others');
+    ok = 'All your other sessions were signed out.';
+  } else if (f.get('action') === 'name') {
     const name = String(f.get('name') ?? '').trim();
     if (name) { updateUser(me.id, { name }); ok = 'Name updated.'; }
   } else {
@@ -27,6 +35,15 @@ if (Astro.request.method === 'POST') {
     }
   }
 }
+const mine = sessionHash(Astro.cookies.get(SESSION_COOKIE)?.value);
+const sessions = listSessions(me.id);
+const device = (ua: string | null) => {
+  if (!ua) return 'Unknown device';
+  const b = /Edg\//.test(ua) ? 'Edge' : /Firefox\//.test(ua) ? 'Firefox' : /Chrome\//.test(ua) ? 'Chrome' : /Safari\//.test(ua) ? 'Safari' : 'Browser';
+  const o = /iPhone|iPad/.test(ua) ? 'iOS' : /Android/.test(ua) ? 'Android' : /Windows/.test(ua) ? 'Windows' : /Mac OS X/.test(ua) ? 'macOS' : /Linux/.test(ua) ? 'Linux' : '';
+  return o ? `${b} on ${o}` : b;
+};
+const ago = (ms: number) => { const m = Math.round((Date.now() - ms) / 60000); return m < 1 ? 'just now' : m < 60 ? `${m} min ago` : `${Math.round(m / 60)} h ago`; };
 ---
 
 <Admin title="My account" crumbs={[{ label: 'My account' }]}>
@@ -54,4 +71,21 @@ if (Astro.request.method === 'POST') {
       <p class="a-help">Lost your phone or running out of recovery codes? Ask an administrator to reset two-step sign-in; you will set it up again at your next login.</p>
     </div>
   </div>
+  <section class="a-card acc-sessions" aria-labelledby="sess-h">
+    <div class="acc-sessions__head">
+      <div>
+        <h3 id="sess-h">Signed-in sessions</h3>
+        <p class="a-help">You are signed out automatically after {Math.round(SESSION_IDLE_MS / 60000)} minutes without activity, and after {Math.round(SESSION_ABSOLUTE_MS / 3600000)} hours in any case.</p>
+      </div>
+      {sessions.length > 1 && <form method="post"><input type="hidden" name="action" value="revoke-others" /><button class="a-btn a-btn--ghost a-btn--sm" type="submit">Sign out all other sessions</button></form>}
+    </div>
+    <ul class="acc-sessions__list">
+      {sessions.map((x) => (
+        <li>
+          <span><strong>{device(x.user_agent)}</strong>{x.id === mine && <span class="a-pill">This device</span>}<small>{x.ip ?? 'unknown IP'} · active {ago(x.last_seen)}</small></span>
+          {x.id !== mine && <form method="post"><input type="hidden" name="action" value="revoke" /><input type="hidden" name="session" value={x.id} /><button class="a-btn a-btn--ghost a-btn--sm" type="submit">Sign out</button></form>}
+        </li>
+      ))}
+    </ul>
+  </section>
 </Admin>
