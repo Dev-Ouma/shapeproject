@@ -108,7 +108,7 @@ docs/CMS-PLAN.md     Original CMS plan and decisions
 
 ## Configuration
 
-Settings come from environment variables. In production they live in `~/shapeproject/shared/.env` on the server; `deploy/env.example` is the template.
+Settings come from environment variables. In production they live in `/var/www/shapeproject/shared/.env` on the server; `deploy/env.example` is the template.
 
 | Variable | Purpose |
 | --- | --- |
@@ -141,7 +141,7 @@ The app is also scanned with StackHawk HawkScan (`stackhawk.yml`). Set `HAWK_API
 Production runs on an Ubuntu VPS behind Nginx with a Let's Encrypt certificate. The app runs as the `shape` systemd service under the `wabwire` user.
 
 ```
-~/shapeproject/
+/var/www/shapeproject/
   releases/<git-sha>/   one folder per deployed commit
   current -> releases/… the live release
   shared/               .env, shape.db, uploads/ and logs (kept across releases)
@@ -151,7 +151,7 @@ Production runs on an Ubuntu VPS behind Nginx with a Let's Encrypt certificate. 
 **Deploy a new version** (after pushing to `main`):
 
 ```sh
-ssh wabwire@197.136.12.54 'bash ~/shapeproject/current/deploy/server-deploy.sh'
+ssh wabwire@197.136.12.54 'bash /var/www/shapeproject/current/deploy/server-deploy.sh'
 ```
 
 The script fetches `main` from GitHub, installs and builds in a new release folder, backs up the database, switches `current`, restarts the service and checks `/healthz`. If the new release does not come up, it switches back to the previous one automatically.
@@ -168,7 +168,7 @@ The script fetches `main` from GitHub, installs and builds in a new release fold
 
 ## Operations
 
-- **Backups**: nightly copies of the database and uploads (kept 30 days) under `~/shapeproject/backups`; every deploy also backs up the database first.
+- **Backups**: nightly copies of the database and uploads (kept 30 days) under `/var/www/shapeproject/backups`; every deploy also backs up the database first.
 - **Health check**: `GET /healthz` returns `{"ok":true,...}`.
 - **Logs**: `journalctl -u shape` on the server.
 - **Search Console**: the property `https://shapeproject.ouk.ac.ke` is verified; the sitemap is `/sitemap.xml`.

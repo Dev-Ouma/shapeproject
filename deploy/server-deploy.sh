@@ -3,7 +3,7 @@
 #   ~/shapeproject/current/deploy/server-deploy.sh            # deploys origin/main
 # Layout: ~/shapeproject/{repo,releases/<sha>,current -> releases/<sha>,shared/{.env,shape.db,uploads}}
 set -euo pipefail
-APP=$HOME/shapeproject
+APP=${APP:-/var/www/shapeproject}
 REPO_URL=https://github.com/Dev-Ouma/shapeproject.git
 BRANCH=${BRANCH:-main}
 mkdir -p "$APP/releases" "$APP/shared/uploads" "$APP/backups"

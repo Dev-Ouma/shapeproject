@@ -4,7 +4,7 @@
 set -euo pipefail
 DOMAIN=shapeproject.ouk.ac.ke
 APP_USER=wabwire
-APP=/home/$APP_USER/shapeproject
+APP=/var/www/shapeproject
 
 # 0. Image tools (this VM's CPU cannot run sharp; the CMS falls back to ImageMagick)
 DEBIAN_FRONTEND=noninteractive apt-get install -y -qq imagemagick >/dev/null
@@ -93,7 +93,7 @@ server {
 SITE
 ln -sfn /etc/nginx/sites-available/shapeproject /etc/nginx/sites-enabled/shapeproject
 # Nginx (www-data) must be able to read uploads.
-chmod o+x /home/$APP_USER $APP $APP/shared
+chmod o+x $APP $APP/shared
 chmod -R o+rX $APP/shared/uploads
 nginx -t
 systemctl reload nginx
