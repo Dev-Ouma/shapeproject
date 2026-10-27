@@ -510,6 +510,117 @@ test('analytics collector ignores cross-site posts and the CSV needs a login', a
   expect([302, 303, 401]).toContain(csv.status());
 });
 
+test('duplicate a thematic area, edit the copy, see revisions', async ({ page, browser }) => {
+  await login(page);
+  await page.goto('/admin/content/thematic');
+  const first = page.locator('tbody tr').first();
+  const title = (await first.locator('td strong').first().textContent())!.trim();
+  await first.getByRole('button', { name: `Duplicate ${title}` }).click();
+  await expect(page.getByText('Duplicated.')).toBeVisible();
+  await expect(page.locator('input[name="data[title]"]')).toHaveValue(`${title} (copy)`);
+  await page.fill('input[name="data[title]"]', 'E2E Thematic Copy');
+  await page.click('button[value=save]');
+  await expect(page.getByText('Saved.')).toBeVisible();
+  await expect(page.locator('.a-revs__list li')).toHaveCount(2);
+  await page.locator('.a-revs__list li').nth(1).getByRole('link', { name: 'Compare' }).click();
+  await expect(page.locator('.a-diff')).toContainText('E2E Thematic Copy');
+  const anon = await browser.newPage();
+  await anon.goto('/about/');
+  await expect(anon.locator('body')).toContainText('E2E Thematic Copy');
+  await anon.close();
+});
+
+test('delete moves to the recycle bin and restore brings it back', async ({ page, browser }) => {
+  await login(page);
+  await page.goto('/admin/content/thematic');
+  await page.getByRole('link', { name: 'E2E Thematic Copy' }).click();
+  page.once('dialog', (d) => d.accept());
+  await page.click('button[value=delete]');
+  await expect(page.locator('.a-flash--ok')).toContainText('recycle bin');
+  const anon = await browser.newPage();
+  await anon.goto('/about/');
+  await expect(anon.locator('body')).not.toContainText('E2E Thematic Copy');
+  await page.goto('/admin/trash');
+  await page.getByRole('button', { name: 'Restore E2E Thematic Copy' }).click();
+  await expect(page.getByRole('status')).toContainText('Restored');
+  await anon.reload();
+  await expect(anon.locator('body')).toContainText('E2E Thematic Copy');
+  await anon.close();
+  await page.goto('/admin/audit?q=E2E+Thematic');
+  await expect(page.locator('.a-trail')).toContainText('thematic.restore');
+  await expect(page.locator('.a-trail')).toContainText('thematic.delete');
+});
+
+test('maintenance mode shows a 503 to visitors while staff browse normally', async ({ page, browser }) => {
+  await login(page);
+  await page.goto('/admin/system/modes');
+  await page.fill('#mmsg', 'Upgrading the servers');
+  page.once('dialog', (d) => d.accept());
+  await page.click('button[value=maintenance-on]');
+  await expect(page.locator('[data-state=maintenance]')).toHaveText('On');
+  const anon = await browser.newPage();
+  const r = await anon.goto('/');
+  expect(r?.status()).toBe(503);
+  expect(r?.headers()['x-maintenance']).toBe('1');
+  expect(r?.headers()['retry-after']).toBeTruthy();
+  await expect(anon.locator('h1')).toHaveText('We’ll be back shortly');
+  await expect(anon.locator('body')).toContainText('Upgrading the servers');
+  expect((await anon.request.get('/healthz')).status()).toBe(200);
+  expect((await page.goto('/'))?.status()).toBe(200);
+  await expect(page.locator('.preview-bar')).toContainText('Maintenance mode is on');
+  await page.goto('/admin/system/modes');
+  await page.click('button[value=maintenance-off]');
+  await expect(page.locator('[data-state=maintenance]')).toHaveText('Off');
+  expect((await anon.goto('/'))?.status()).toBe(200);
+  await anon.close();
+});
+
+test('lockdown blocks contact submissions until lifted', async ({ page, browser }) => {
+  await login(page);
+  await page.goto('/admin/system/modes');
+  await page.fill('#lconfirm', 'nope');
+  await page.click('button[value=lockdown-on]');
+  await expect(page.getByRole('alert')).toContainText('Type LOCKDOWN');
+  await page.fill('#lconfirm', 'LOCKDOWN');
+  await page.click('button[value=lockdown-on]');
+  await expect(page.locator('[data-state=lockdown]')).toHaveText('Active');
+  await expect(page.locator('.a-banner--danger')).toBeVisible();
+  const visitor = await browser.newPage();
+  await visitor.goto('/contact/');
+  await visitor.fill('input[name=name]', 'Locked Out');
+  await visitor.fill('input[name=email]', 'lock@example.org');
+  await visitor.fill('input[name=subject]', 'During lockdown');
+  await visitor.fill('textarea[name=message]', 'Should not arrive.');
+  const [resp] = await Promise.all([visitor.waitForResponse((r) => r.url().includes('/api/contact')), visitor.click('.contact__form button[type=submit]')]);
+  expect(resp.status()).toBe(503);
+  await page.click('button[value=lockdown-off]');
+  await expect(page.locator('[data-state=lockdown]')).toHaveText('Off');
+  await page.goto('/admin/messages?f=all&q=During+lockdown');
+  await expect(page.locator('body')).not.toContainText('Should not arrive');
+  await visitor.close();
+});
+
+test('release notes: create a draft, publish it, see it in What’s new', async ({ page }) => {
+  await login(page);
+  await page.goto('/admin/releases');
+  await expect(page.locator('.rel').first()).toContainText('v1.4.0');
+  await page.goto('/admin/content/releases/new');
+  await page.fill('input[name="data[version]"]', '9.9.9');
+  await page.fill('input[name="data[title]"]', 'E2E release');
+  await page.fill('input[name="data[date]"]', '2026-10-27');
+  await page.locator('[data-rte-body] .ProseMirror').click();
+  await page.keyboard.type('Tested end to end.');
+  await page.click('button[value=draft]');
+  await expect(page.getByText('Saved.')).toBeVisible();
+  await page.goto('/admin/releases');
+  await expect(page.locator('body')).not.toContainText('E2E release');
+  await page.goBack();
+  await page.click('button[value=publish]');
+  await page.goto('/admin/releases');
+  await expect(page.locator('.rel').first()).toContainText('E2E release');
+  await expect(page.locator('.a-version')).toContainText('v9.9.9');
+});
+
 test('logout ends the session', async ({ page }) => {
   await login(page);
   await page.goto('/admin');
