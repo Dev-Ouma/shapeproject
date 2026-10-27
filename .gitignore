@@ -8,3 +8,7 @@ node_modules/
 reference/
 uploads/
 var/
+*.sqlite
+*.sqlite-*
+test-results/
+playwright-report/
