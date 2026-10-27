@@ -114,6 +114,34 @@ describe('lockdown', () => {
   });
 });
 
+describe('lockdown is strict about accounts', () => {
+  it('revokes pending invites, refuses new ones and blocks accepting old links', () => {
+    const admin = auth.createUser('a2@x.org', 'A', 'admin', 'Admin-pass-12345');
+    const before = auth.createInvite('late@x.org', 'Late', 'admin', admin);
+    const cut = sys.startLockdown({ freeze: false }, admin);
+    expect(cut.invites).toBe(1);
+    expect(auth.getInvite(before)).toBeUndefined();
+    expect(auth.acceptInvite(before, 'Late-pass-123456')).toBeUndefined();
+    expect(() => auth.createInvite('x@x.org', 'X', 'editor', admin)).toThrow(/lockdown/);
+    expect(auth.findUserByEmail('late@x.org')).toBeUndefined();
+    sys.liftLockdown(admin);
+    const after = auth.createInvite('late@x.org', 'Late', 'admin', admin);
+    expect(auth.acceptInvite(after, 'Late-pass-123456')?.email).toBe('late@x.org');
+  });
+
+  it('signs out other admins too', () => {
+    const a = auth.createUser('a3@x.org', 'A', 'admin', 'Admin-pass-12345');
+    auth.createUser('b3@x.org', 'B', 'admin', 'Admin-pass-12345');
+    const meta = { ip: '1.1.1.1', userAgent: 'test' };
+    const mine = auth.login('a3@x.org', 'Admin-pass-12345', meta);
+    const other = auth.login('b3@x.org', 'Admin-pass-12345', meta);
+    if (!mine.ok || !other.ok) throw new Error('login failed');
+    sys.startLockdown({ freeze: true }, a, auth.sessionHash(mine.token));
+    expect(auth.sessionInfo(other.token)).toBeUndefined();
+    expect(auth.sessionInfo(mine.token)).toBeTruthy();
+  });
+});
+
 describe('release notes', () => {
   it('seeds one published release and supports create, publish and version validation', () => {
     expect(content.listEntries('releases').map((r) => r.data.version)).toEqual(['1.4.0']);

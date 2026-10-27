@@ -14,6 +14,8 @@ const OTP_PATHS = [/^\/admin\/otp\/?$/, /^\/admin\/logout\/?$/];
 const ADMIN_ONLY = [/^\/admin\/users/, /^\/admin\/audit/, /^\/admin\/system/, /^\/admin\/api\/audit/, /^\/admin\/content\/(settings|nav|redirects|releases)(\/|$)/];
 // Still accepted while lockdown freezes the CMS (so admins can sign in/out and lift it).
 const FREEZE_EXEMPT = [/^\/admin\/(login|logout|otp)\/?$/, /^\/admin\/system\/modes\/?$/];
+// Account management closed during lockdown, frozen or not: no invites, role or password changes for others.
+const LOCKDOWN_CLOSED = [/^\/admin\/invite\//, /^\/admin\/users/];
 // Public form endpoints closed during lockdown.
 const PUBLIC_WRITES = /^\/api\/(contact|comments)\/?$/;
 
@@ -69,6 +71,10 @@ const handle: Parameters<typeof defineMiddleware>[0] = async (ctx, next) => {
         logout(ctx.cookies.get(SESSION_COOKIE)?.value);
         ctx.cookies.delete(SESSION_COOKIE, { path: '/' });
         return ctx.redirect('/admin/login?lockdown=1', 303);
+      }
+      if (LOCKDOWN_CLOSED[0]!.test(path)) return ctx.redirect('/admin/login?lockdown=1', 303);
+      if (ctx.request.method !== 'GET' && ctx.request.method !== 'HEAD' && LOCKDOWN_CLOSED.some((r) => r.test(path))) {
+        return new Response('User management is locked during lockdown. Lift the lockdown first.', { status: 423, headers: { 'Content-Type': 'text/plain; charset=utf-8', 'Cache-Control': 'no-store' } });
       }
       if (lock.freeze && ctx.request.method !== 'GET' && ctx.request.method !== 'HEAD' && !FREEZE_EXEMPT.some((r) => r.test(path))) {
         return new Response('The CMS is read-only during lockdown. Lift the lockdown under Administration → Maintenance & lockdown.', { status: 423, headers: { 'Content-Type': 'text/plain; charset=utf-8', 'Cache-Control': 'no-store' } });

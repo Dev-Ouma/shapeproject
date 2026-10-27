@@ -346,6 +346,11 @@ test('editor invite: accept, edit content, blocked from admin-only areas', async
   await page.selectOption('#irole', 'editor');
   await page.click('form:has(#iname) button[type=submit]');
   const link = await page.locator('[data-invite]').inputValue();
+  await expect(page.locator('[data-invite-mail]')).toHaveAttribute('data-invite-mail', 'sent');
+  const { readFileSync } = await import('node:fs');
+  const mailLog = () => readFileSync('var/e2e/mail.jsonl', 'utf8');
+  expect(mailLog()).toContain('edna@test.local');
+  expect(mailLog()).toContain('Your SHAPE CMS invitation');
   expect(link).toMatch(/\/admin\/invite\//);
 
   const editor = await browser.newPage();
@@ -359,6 +364,8 @@ test('editor invite: accept, edit content, blocked from admin-only areas', async
   await editor.fill('#password', 'Editor-pass-6789');
   await editor.fill('#confirm', 'Editor-pass-6789');
   await editor.click('button[type=submit]');
+  await editor.waitForLoadState('networkidle');
+  expect(mailLog()).toContain('Your SHAPE CMS account is ready');
   await passOtp(editor, 'edna@test.local');
   await expect(editor).toHaveURL(/\/admin$/);
   await expect(editor.locator('.a-role').first()).toHaveText('editor');

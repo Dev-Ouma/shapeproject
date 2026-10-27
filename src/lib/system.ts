@@ -29,10 +29,16 @@ export function setMaintenance(on: boolean, opts: { message?: string; until?: st
   setFlag('maintenance', { on, message: (opts.message ?? '').slice(0, 500), until: opts.until ?? '', since: on ? new Date().toISOString() : undefined, by: userId }, userId);
 }
 
-/** Turn lockdown on: every other session is signed out. */
+/**
+ * Turn lockdown on: every other session (admins included) is signed out and every unused invite link is
+ * revoked, so no new account can appear. Returns what was cut off, for the audit trail.
+ */
 export function startLockdown(opts: { freeze: boolean; reason?: string }, userId: number, keepSessionHash?: string) {
+  const db = getDb();
   setFlag('lockdown', { on: true, freeze: opts.freeze, reason: (opts.reason ?? '').slice(0, 300), since: new Date().toISOString(), by: userId }, userId);
-  getDb().prepare('DELETE FROM sessions WHERE id IS NOT ?').run(keepSessionHash ?? null);
+  const sessions = db.prepare('DELETE FROM sessions WHERE id IS NOT ?').run(keepSessionHash ?? null).changes;
+  const invites = db.prepare('UPDATE invites SET expires_at = 0 WHERE used_at IS NULL AND expires_at > ?').run(Date.now()).changes;
+  return { sessions: Number(sessions), invites: Number(invites) };
 }
 
 export function liftLockdown(userId: number) {

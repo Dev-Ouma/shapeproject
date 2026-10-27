@@ -22,6 +22,7 @@ export default defineConfig({
       BOOTSTRAP_ADMIN_PASSWORD: 'Admin-pass-12345',
       BOOTSTRAP_ADMIN_NAME: 'Test Admin',
       SITE_URL: `http://127.0.0.1:${PORT}`,
+      MAIL_CAPTURE: 'var/e2e/mail.jsonl',
     },
   },
 });

@@ -28,6 +28,7 @@ const noUsers = countUsers() === 0;
   <h1>Sign in to SHAPE CMS</h1>
   <p class="a-sub">Manage the SHAPE project website.</p>
   {noUsers && <p class="a-flash a-flash--err">No accounts exist yet. Create the first admin on the server with <code>npm run create-admin</code>.</p>}
+  {Astro.url.searchParams.has('lockdown') && !error && <p class="a-flash a-flash--err" role="status">The CMS is in lockdown. Only administrators can sign in.</p>}
   {error && <p class="a-flash a-flash--err" role="alert">{error}</p>}
   <form method="post" class="a-form">
     <div class="a-field"><label for="email">Email</label><input id="email" name="email" type="email" autocomplete="username" required value={email} autofocus /></div>

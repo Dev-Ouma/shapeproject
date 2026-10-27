@@ -1,5 +1,8 @@
 ---
 import AuthShell from '../../../components/admin/AuthShell.astro';
+import { clientIp } from '../../../lib/analytics';
+import { sendMail } from '../../../lib/mail';
+import { welcomeEmail } from '../../../lib/emails';
 import { getInvite, acceptInvite, passwordProblem, login, SESSION_COOKIE, sessionMaxAge, audit } from '../../../lib/auth';
 
 const token = Astro.params.token ?? '';
@@ -15,7 +18,10 @@ if (invite && Astro.request.method === 'POST') {
     if (!user) error = 'This invite can no longer be used.';
     else {
       audit(user.id, 'invite.accepted', user.email);
-      const r = login(user.email, pw, { ip: Astro.clientAddress, userAgent: Astro.request.headers.get('user-agent') ?? '' });
+      const m = welcomeEmail(Astro.url.origin, user.name, user.email, user.role);
+      const sent = await sendMail(user.email, m.subject, m.text, undefined, m.html);
+      if (!sent.ok) console.error('Welcome email not sent:', sent.error);
+      const r = login(user.email, pw, { ip: clientIp(Astro.request, Astro.clientAddress), userAgent: Astro.request.headers.get('user-agent') ?? '' });
       if (r.ok) Astro.cookies.set(SESSION_COOKIE, r.token, { path: '/', httpOnly: true, sameSite: 'lax', secure: Astro.url.protocol === 'https:', maxAge: sessionMaxAge });
       return Astro.redirect(r.ok && r.needsOtp ? '/admin/otp' : '/admin', 303);
     }

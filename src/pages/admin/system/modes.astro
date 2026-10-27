@@ -34,8 +34,8 @@ if (Astro.request.method === 'POST') {
     else {
       const freeze = f.get('freeze') === 'on';
       const reason = String(f.get('reason') ?? '').trim();
-      startLockdown({ freeze, reason }, user.id, sessionHash(Astro.cookies.get(SESSION_COOKIE)?.value));
-      audit(user.id, 'lockdown.on', reason || undefined, { freeze });
+      const cut = startLockdown({ freeze, reason }, user.id, sessionHash(Astro.cookies.get(SESSION_COOKIE)?.value));
+      audit(user.id, 'lockdown.on', reason || undefined, { freeze, signedOut: cut.sessions, invitesRevoked: cut.invites });
       return Astro.redirect('/admin/system/modes?done=lockdown-on', 303);
     }
   } else if (action === 'lockdown-off') {

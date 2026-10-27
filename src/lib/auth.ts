@@ -170,6 +170,7 @@ export const sessionMaxAge = SESSION_DAYS * 86400;
 /* ---------------- invites ---------------- */
 
 export function createInvite(email: string, name: string, role: Role, createdBy: number): string {
+  if (getLockdown().on) throw new Error('Invites cannot be created during lockdown.');
   const token = randomBytes(24).toString('base64url');
   getDb()
     .prepare('INSERT INTO invites (token_hash, email, name, role, expires_at, created_by) VALUES (?, ?, ?, ?, ?, ?)')
@@ -184,6 +185,8 @@ export function getInvite(token: string) {
 }
 
 export function acceptInvite(token: string, password: string): User | undefined {
+  // No new accounts while locked down (pending invites are also revoked when lockdown starts).
+  if (getLockdown().on) return undefined;
   const inv = getInvite(token);
   if (!inv) return undefined;
   if (findUserByEmail(inv.email)) return undefined;

@@ -1,11 +1,16 @@
 ---
 import Admin from '../../layouts/Admin.astro';
 import Lucide from '../../components/Lucide.astro';
+import { getLockdown } from '../../lib/system';
+import { sendMail } from '../../lib/mail';
+import { inviteEmail } from '../../lib/emails';
 import { resetOtp, otpEnabled } from '../../lib/otp';
 import { listUsers, createInvite, updateUser, listPendingInvites, countActiveAdmins, getUser, audit, findUserByEmail, type Role } from '../../lib/auth';
 
 let error = '';
 let inviteLink = '';
+let inviteMail = '';
+let inviteMailOk = false;
 const me = Astro.locals.user!;
 if (Astro.request.method === 'POST') {
   const f = await Astro.request.formData();
@@ -19,7 +24,11 @@ if (Astro.request.method === 'POST') {
     else {
       const token = createInvite(email, name, role, me.id);
       inviteLink = `${Astro.url.origin}/admin/invite/${token}`;
-      audit(me.id, 'user.invite', `${email} (${role})`);
+      const m = inviteEmail(Astro.url.origin, name, role, inviteLink);
+      const sent = await sendMail(email, m.subject, m.text, undefined, m.html);
+      inviteMail = sent.ok ? `An invitation email was sent to ${email}.` : `The email could not be sent (${sent.error}) — copy the link below and send it yourself.`;
+      inviteMailOk = sent.ok;
+      audit(me.id, 'user.invite', `${email} (${role})`, { emailed: sent.ok });
     }
   } else {
     const id = Number(f.get('id'));
@@ -48,15 +57,18 @@ const summary = [
   { label: 'Two-step on', value: `${users.filter((u) => otpOn.get(u.id)).length}/${users.length}`, icon: 'KeyRound' },
 ];
 const initials = (n: string) => n.split(/\s+/).filter(Boolean).slice(0, 2).map((w) => w[0]!.toUpperCase()).join('');
+const locked = getLockdown().on;
 ---
 
 <Admin title="Users" crumbs={[{ label: 'Administration', href: '/admin/system' }, { label: 'Users' }]}>
+  {locked && <p class="a-flash a-flash--err" role="status"><strong>Lockdown is active.</strong> Invites, role changes and sign-in resets are locked. <a href="/admin/system/modes">Lift the lockdown</a> to manage users.</p>}
+  <fieldset class="a-lockset" disabled={locked}>
   <div class="a-head"><div><h1>Users</h1><p>Admins manage everything. Editors manage content but not users, settings, navigation or redirects.</p></div></div>
   {Astro.url.searchParams.has('saved') && <p class="a-flash a-flash--ok" role="status">Saved.</p>}
   {error && <p class="a-flash a-flash--err" role="alert">{error}</p>}
   {inviteLink && (
     <div class="a-flash a-flash--ok" role="status">
-      Invitation created. Send this link to the person (valid for 7 days, single use):
+      Invitation created. <span data-invite-mail={inviteMailOk ? 'sent' : 'failed'}>{inviteMail}</span> Link (valid for 7 days, single use):
       <div class="usr-link"><input class="a-input" readonly value={inviteLink} data-invite aria-label="Invitation link" /><button type="button" class="a-btn a-btn--sm" data-copy-invite>Copy</button></div>
     </div>
   )}
@@ -113,6 +125,7 @@ const initials = (n: string) => n.split(/\s+/).filter(Boolean).slice(0, 2).map((
   {invites.length > 0 && (
     <div class="a-card" style="margin-top:18px"><h3>Pending invitations</h3><ul class="a-list">{invites.map((i) => <li><span>{i.name} — {i.email} <span class="a-role">{i.role}</span></span><small>expires {new Date(i.expires_at).toLocaleDateString('en-GB')}</small></li>)}</ul></div>
   )}
+  </fieldset>
 </Admin>
 <script>
   document.querySelector('[data-copy-invite]')?.addEventListener('click', () => navigator.clipboard.writeText(document.querySelector<HTMLInputElement>('[data-invite]')!.value));
