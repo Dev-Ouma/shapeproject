@@ -8,7 +8,7 @@
 
 **System Requirements Definition (SRD), User Acceptance Testing (UAT) and Backlog Management Index (BMI) Document**
 
-Version 1.0  
+Version 1.1  
 **27th October 2026**
 
 **Contents**
@@ -70,6 +70,7 @@ Version 1.0
 | No. | Date | Version | Description | Author | Application URL |
 | :---: | :---: | :---: | ----- | ----- | ----- |
 | **1\.**  | October 2026 | v1.0 | Initial System Requirements Definition, User Acceptance Testing and Backlog Management Index document for the SHAPE Project website and CMS | — | https\://shapeproject.ouk.ac.ke/ (website) and https\://shapeproject.ouk.ac.ke/admin/login (CMS) |
+| **2\.** | 27 October 2026 | v1.1 | Final security scan results recorded; server hardening and handover actions closed; ready for sign-off by the Vice-Chancellor and Principal Investigator | — | https\://shapeproject.ouk.ac.ke/ |
 
 # **Introduction**
 
@@ -508,10 +509,10 @@ All test cases were executed against the production build of release **d2a2a47**
 | :---: | ----- | ----- |
 | **BM-001** | Google Search Console Sitemap Status | The submitted sitemap shows "Couldn't fetch" although the live test passes ("URL is available to Google"). This is normal for a new property. Re-check within 48 hours; if it persists, confirm with OUK ICT that the university firewall does not block Google's crawlers. Closes TC\_SH\_055 and TC\_SH\_056. |
 | **BM-002** | Security Scan Follow-up (Closed) | Final scans of release d2a2a47 completed: CMS scan 36b7b8a6-ffd3-46e3-9b19-fbd6dc920186 and live scan 8172cd3e-b9ed-4afa-8957-fdd73991174c on the StackHawk application. All alerts triaged with reasons; `server_tokens off` set in `/etc/nginx/nginx.conf` so no Nginx version is exposed by any site on the server. Re-run `hawk scan stackhawk.yml` (local build) and `hawk scan stackhawk-live.yml` after each major release. |
-| **BM-003** | Server Access Hardening (Done) / Remaining Credentials | Done on 27 Oct 2026 (`deploy/harden-server.sh`): fail2ban blocks SSH brute force (5 failures → 1 h ban, repeat → 1 week); automatic security updates; key-only SSH for `wabwire` and `root`; password-free sudo limited to SHAPE tasks; the developer key now has a passphrase. Remaining: change the CMS admin password (initial one is under the 12-character policy) and rotate the StackHawk API key. Ask `wanyoike` and `benito` to move to SSH keys so password login can be disabled server-wide. |
+| **BM-003** | Server Access Hardening and Credentials (Closed) | Done 27 Oct 2026: fail2ban, automatic security updates, key-only SSH for `wabwire` and `root`, sudo limited to SHAPE tasks (`deploy/harden-server.sh`); developer key protected by a passphrase; CMS admin password changed; StackHawk API key rotated; other server users moved to SSH keys. Optional next step: disable SSH password login server-wide once every account is confirmed key-only. |
 | **BM-004** | Server Operating System Updates | About 70 Ubuntu packages on the shared server have updates. Node.js, Nginx and ImageMagick (used by this site) were updated; the rest belong to other services (Matrix, PHP sites, SOMAS DR relay) and should be scheduled by the server owners. |
 | **BM-005** | Email Authentication Records | Outgoing mail uses the Google Workspace relay from 197.136.12.54. Ask the ouk.ac.ke Workspace admin to confirm SPF and DKIM cover the relay so emails do not land in spam. |
-| **BM-006** | Shared Port 443 with SOMAS DR Relay | `/etc/nginx/somas-dr-stream.conf` now routes HTTPS by host name (shapeproject → local site, everything else → 10.0.0.2:443). Inform the SOMAS DR team; any future change to that file must keep this rule. |
+| **BM-006** | Shared Port 443 with SOMAS DR Relay | `/etc/nginx/somas-dr-stream.conf` now routes HTTPS by host name (shapeproject → local site, everything else → 10.0.0.2:443). Inform the SOMAS DR team; any future change to that file must keep this rule. **Status: SOMAS DR team informed (closed).** |
 | **BM-007** | Privacy Notice for Analytics | Analytics is cookieless and stores no personal data, so no consent banner is needed. As good practice add one sentence to the website's privacy notice stating that anonymous visit statistics are collected. |
 | **BM-008** | Image Library on Server CPU | The server's virtual CPU is too old for the fast image library (sharp); ImageMagick is used instead. Switching the VM CPU type to "host" (or x86-64-v2) would enable sharp. No functional impact. |
 | **BM-009** | Inline Style Attributes in CSP | The Content Security Policy allows inline `style` attributes (used for chart and colour values). Scripts remain fully restricted. Low risk; may be tightened in a future release. |
