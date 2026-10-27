@@ -104,6 +104,21 @@ const MIGRATIONS: string[] = [
   ALTER TABLE users ADD COLUMN recovery_codes TEXT NOT NULL DEFAULT '[]';
   ALTER TABLE sessions ADD COLUMN mfa_ok INTEGER NOT NULL DEFAULT 1;
   `,
+  // 3 — inbox: star/archive messages and keep a record of replies sent from the CMS
+  `
+  ALTER TABLE messages ADD COLUMN starred INTEGER NOT NULL DEFAULT 0;
+  ALTER TABLE messages ADD COLUMN archived INTEGER NOT NULL DEFAULT 0;
+  CREATE TABLE message_replies (
+    id INTEGER PRIMARY KEY,
+    message_id INTEGER NOT NULL REFERENCES messages(id) ON DELETE CASCADE,
+    user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+    body TEXT NOT NULL,
+    status TEXT NOT NULL,
+    error TEXT,
+    created_at TEXT NOT NULL DEFAULT (datetime('now'))
+  );
+  CREATE INDEX message_replies_msg ON message_replies(message_id);
+  `,
 ];
 
 let db: DatabaseSync | undefined;

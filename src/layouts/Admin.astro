@@ -54,7 +54,7 @@ const active = (href: string) => (href === '/admin' ? path === '/admin' || path 
           })}
           <h4>Engagement</h4>
           <a href="/admin/comments" class:list={{ 'is-active': active('/admin/comments') }}><Lucide name="MessageSquare" size={17} /> Comments {pending > 0 && <span class="a-badge">{pending}</span>}</a>
-          <a href="/admin/messages" class:list={{ 'is-active': active('/admin/messages') }}><Lucide name="Inbox" size={17} /> Messages {unread > 0 && <span class="a-badge">{unread}</span>}</a>
+          <a href="/admin/messages" class:list={{ 'is-active': active('/admin/messages') }}><Lucide name="Inbox" size={17} /> Inbox {unread > 0 && <span class="a-badge">{unread}</span>}</a>
           <h4>Tools</h4>
           <a href="/admin/media" class:list={{ 'is-active': active('/admin/media') }}><Lucide name="Image" size={17} /> Media library</a>
           <a href="/admin/book" class:list={{ 'is-active': active('/admin/book') }}><Lucide name="BookOpen" size={17} /> Project Book PDF</a>

@@ -59,7 +59,18 @@ export function countPendingComments(): number {
 
 /* ---------------- messages ---------------- */
 
-export type Message = { id: number; name: string; email: string; subject: string; body: string; read: number; created_at: string };
+export type Message = { id: number; name: string; email: string; subject: string; body: string; read: number; starred: number; archived: number; created_at: string };
+export type MessageReply = { id: number; message_id: number; user_id: number | null; author: string | null; body: string; status: 'sent' | 'failed' | 'logged'; error: string | null; created_at: string };
+export type InboxFolder = 'inbox' | 'unread' | 'starred' | 'archived' | 'all';
+export const INBOX_FOLDERS: InboxFolder[] = ['inbox', 'unread', 'starred', 'archived', 'all'];
+
+const FOLDER_WHERE: Record<InboxFolder, string> = {
+  inbox: 'archived = 0',
+  unread: 'read = 0 AND archived = 0',
+  starred: 'starred = 1',
+  archived: 'archived = 1',
+  all: '1 = 1',
+};
 
 export function addMessage(input: { name: string; email: string; subject: string; body: string }): { ok: true; id: number } | { ok: false; error: string } {
   const name = plainText(input.name, 100);
@@ -71,8 +82,49 @@ export function addMessage(input: { name: string; email: string; subject: string
   return { ok: true, id: Number(r.lastInsertRowid) };
 }
 
-export function listMessages(): Message[] {
-  return getDb().prepare('SELECT * FROM messages ORDER BY id DESC').all() as any;
+export function listMessages(folder: InboxFolder = 'all', q = ''): (Message & { replies: number })[] {
+  const args: string[] = [];
+  let where = FOLDER_WHERE[folder] ?? FOLDER_WHERE.all;
+  if (q.trim()) {
+    where += ' AND (name LIKE ? OR email LIKE ? OR subject LIKE ? OR body LIKE ?)';
+    const like = `%${q.trim().slice(0, 100)}%`;
+    args.push(like, like, like, like);
+  }
+  return getDb()
+    .prepare(`SELECT m.*, (SELECT COUNT(*) FROM message_replies r WHERE r.message_id = m.id) AS replies FROM messages m WHERE ${where} ORDER BY m.id DESC LIMIT 500`)
+    .all(...args) as any;
+}
+
+export function folderCounts(): Record<InboxFolder, number> {
+  const out = {} as Record<InboxFolder, number>;
+  for (const f of INBOX_FOLDERS) out[f] = (getDb().prepare(`SELECT COUNT(*) AS n FROM messages WHERE ${FOLDER_WHERE[f]}`).get() as { n: number }).n;
+  return out;
+}
+
+export function setStarred(id: number, on: boolean) {
+  getDb().prepare('UPDATE messages SET starred = ? WHERE id = ?').run(on ? 1 : 0, id);
+}
+
+export function setArchived(id: number, on: boolean) {
+  getDb().prepare('UPDATE messages SET archived = ? WHERE id = ?').run(on ? 1 : 0, id);
+}
+
+export function markAllRead() {
+  getDb().prepare('UPDATE messages SET read = 1 WHERE read = 0').run();
+}
+
+export function listReplies(messageId: number): MessageReply[] {
+  return getDb()
+    .prepare('SELECT r.*, u.name AS author FROM message_replies r LEFT JOIN users u ON u.id = r.user_id WHERE r.message_id = ? ORDER BY r.id')
+    .all(messageId) as any;
+}
+
+/** Record a reply in the CMS; status says whether it was emailed, failed, or only logged (no SMTP). */
+export function addReply(messageId: number, userId: number, body: string, status: MessageReply['status'], error?: string): number {
+  const r = getDb()
+    .prepare('INSERT INTO message_replies (message_id, user_id, body, status, error) VALUES (?, ?, ?, ?, ?)')
+    .run(messageId, userId, body, status, error ?? null);
+  return Number(r.lastInsertRowid);
 }
 
 export function getMessage(id: number): Message | undefined {
@@ -88,5 +140,5 @@ export function deleteMessage(id: number) {
 }
 
 export function countUnreadMessages(): number {
-  return (getDb().prepare('SELECT COUNT(*) AS n FROM messages WHERE read = 0').get() as { n: number }).n;
+  return (getDb().prepare('SELECT COUNT(*) AS n FROM messages WHERE read = 0 AND archived = 0').get() as { n: number }).n;
 }

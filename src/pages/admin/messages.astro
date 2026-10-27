@@ -1,49 +1,193 @@
 ---
 import Admin from '../../layouts/Admin.astro';
-import { listMessages, getMessage, markRead, deleteMessage } from '../../lib/engagement';
+import Lucide from '../../components/Lucide.astro';
+import {
+  listMessages, getMessage, markRead, deleteMessage, setStarred, setArchived, markAllRead,
+  folderCounts, listReplies, addReply, INBOX_FOLDERS, type InboxFolder,
+} from '../../lib/engagement';
 import { audit } from '../../lib/auth';
+import { sendMail, mailEnabled } from '../../lib/mail';
+import { plainText } from '../../lib/sanitize';
 
+const folderParam = Astro.url.searchParams.get('f') as InboxFolder;
+const folder: InboxFolder = INBOX_FOLDERS.includes(folderParam) ? folderParam : 'inbox';
+const q = (Astro.url.searchParams.get('q') ?? '').slice(0, 100);
+const keep = (id?: number) => {
+  const p = new URLSearchParams();
+  if (folder !== 'inbox') p.set('f', folder);
+  if (q) p.set('q', q);
+  if (id) p.set('id', String(id));
+  const s = p.toString();
+  return `/admin/messages${s ? '?' + s : ''}`;
+};
+
+let notice = '';
+let error = '';
 if (Astro.request.method === 'POST') {
   const f = await Astro.request.formData();
   const id = Number(f.get('id'));
   const action = String(f.get('action'));
-  if (action === 'delete') { deleteMessage(id); audit(Astro.locals.user!.id, 'message.delete', String(id)); return Astro.redirect('/admin/messages', 303); }
-  if (action === 'unread') markRead(id, false);
-  return Astro.redirect('/admin/messages', 303);
+  const user = Astro.locals.user!;
+  if (action === 'read-all') { markAllRead(); return Astro.redirect(keep(), 303); }
+  const msg = getMessage(id);
+  if (!msg) return Astro.redirect(keep(), 303);
+  switch (action) {
+    case 'delete':
+      deleteMessage(id);
+      audit(user.id, 'message.delete', String(id));
+      return Astro.redirect(keep(), 303);
+    case 'unread': markRead(id, false); return Astro.redirect(keep(), 303);
+    case 'star': setStarred(id, !msg.starred); return Astro.redirect(keep(id), 303);
+    case 'archive': setArchived(id, true); audit(user.id, 'message.archive', String(id)); return Astro.redirect(keep(), 303);
+    case 'unarchive': setArchived(id, false); return Astro.redirect(keep(id), 303);
+    case 'reply': {
+      const body = plainText(String(f.get('body') ?? ''), 10000);
+      if (!body) { error = 'Write a reply first.'; break; }
+      const subject = msg.subject.startsWith('Re: ') ? msg.subject : `Re: ${msg.subject}`;
+      if (f.get('mode') === 'log' || !mailEnabled()) {
+        addReply(id, user.id, body, 'logged');
+        audit(user.id, 'message.reply.log', String(id));
+        notice = 'Reply recorded. It was not emailed — send it from your mail client.';
+      } else {
+        const r = await sendMail(msg.email, subject, body, process.env.NOTIFY_EMAIL);
+        addReply(id, user.id, body, r.ok ? 'sent' : 'failed', r.ok ? undefined : r.error);
+        audit(user.id, r.ok ? 'message.reply.sent' : 'message.reply.failed', String(id));
+        if (r.ok) notice = `Reply emailed to ${msg.email}.`;
+        else error = `Email failed: ${r.error} The reply is saved in the thread.`;
+      }
+      break;
+    }
+  }
 }
+
 const openId = Number(Astro.url.searchParams.get('id'));
 const open = openId ? getMessage(openId) : undefined;
-if (open && !open.read) markRead(open.id);
-const messages = listMessages();
+if (open && !open.read) { markRead(open.id); open.read = 1; }
+const replies = open ? listReplies(open.id) : [];
+const messages = listMessages(folder, q);
+const counts = folderCounts();
+const canEmail = mailEnabled();
+const labels: Record<InboxFolder, [string, string]> = {
+  inbox: ['Inbox', 'Inbox'], unread: ['Unread', 'MailOpen'], starred: ['Starred', 'Star'], archived: ['Archived', 'Archive'], all: ['All mail', 'Mails'],
+};
+const when = (s: string) => {
+  const d = new Date(s.replace(' ', 'T') + 'Z');
+  const today = new Date();
+  return d.toDateString() === today.toDateString()
+    ? d.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', timeZone: 'Africa/Nairobi' })
+    : d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: d.getFullYear() === today.getFullYear() ? undefined : 'numeric', timeZone: 'Africa/Nairobi' });
+};
+const full = (s: string) => new Date(s.replace(' ', 'T') + 'Z').toLocaleString('en-GB', { dateStyle: 'medium', timeStyle: 'short', timeZone: 'Africa/Nairobi' }) + ' EAT';
+const initials = (n: string) => n.split(/\s+/).filter(Boolean).slice(0, 2).map((w) => w[0]!.toUpperCase()).join('');
 ---
 
-<Admin title="Messages" crumbs={[{ label: 'Messages' }]}>
-  <div class="a-head"><div><h1>Messages</h1><p>Sent from the Contact page.</p></div></div>
-  {open && (
-    <div class="a-card" style="margin-bottom:18px">
-      <h2 style="font-size:1.2rem">{open.subject}</h2>
-      <p class="a-help">From <strong>{open.name}</strong> &lt;<a href={`mailto:${open.email}?subject=${encodeURIComponent('Re: ' + open.subject)}`}>{open.email}</a>&gt; · {open.created_at} UTC</p>
-      <p style="white-space:pre-line">{open.body}</p>
-      <form method="post" style="display:flex;gap:8px">
-        <input type="hidden" name="id" value={open.id} />
-        <a class="a-btn" href={`mailto:${open.email}?subject=${encodeURIComponent('Re: ' + open.subject)}`}>Reply by email</a>
-        <button class="a-btn a-btn--ghost" name="action" value="unread">Mark unread</button>
-        <button class="a-btn a-btn--danger" name="action" value="delete" data-confirm="Delete this message?">Delete</button>
+<Admin title="Inbox" crumbs={[{ label: 'Inbox' }]}>
+  <div class="a-head">
+    <div><h1>Inbox</h1><p>Every message sent from the Contact page, with replies recorded in each thread.</p></div>
+    <form method="post"><button class="a-btn a-btn--ghost a-btn--sm" name="action" value="read-all" disabled={counts.unread === 0}><Lucide name="CheckCheck" size={15} /> Mark all read</button></form>
+  </div>
+  {notice && <p class="a-flash a-flash--ok" role="status">{notice}</p>}
+  {error && <p class="a-flash a-flash--err" role="alert">{error}</p>}
+
+  <div class:list={['ibx', { 'ibx--open': open }]}>
+    <nav class="ibx__folders" aria-label="Folders">
+      {INBOX_FOLDERS.map((f) => (
+        <a href={f === 'inbox' ? '/admin/messages' : `/admin/messages?f=${f}`} class:list={{ 'is-active': f === folder }} aria-current={f === folder ? 'page' : undefined}>
+          <Lucide name={labels[f][1] as any} size={16} /> <span>{labels[f][0]}</span>
+          {counts[f] > 0 && <em class:list={{ hot: f === 'unread' }}>{counts[f]}</em>}
+        </a>
+      ))}
+    </nav>
+
+    <section class="ibx__list" aria-label="Messages">
+      <form class="ibx__search" method="get" role="search">
+        {folder !== 'inbox' && <input type="hidden" name="f" value={folder} />}
+        <Lucide name="Search" size={16} />
+        <input class="a-input" type="search" name="q" value={q} placeholder="Search name, email, subject or text" aria-label="Search messages" />
       </form>
-    </div>
-  )}
-  {messages.length === 0 ? <div class="a-card a-empty">No messages yet.</div> : (
-    <table class="a-table">
-      <thead><tr><th>From</th><th>Subject</th><th>Received</th></tr></thead>
-      <tbody>
-        {messages.map((m) => (
-          <tr>
-            <td>{m.read ? m.name : <strong>{m.name}</strong>}<div class="a-help">{m.email}</div></td>
-            <td><a href={`?id=${m.id}`}>{m.read ? m.subject : <strong>{m.subject}</strong>}</a></td>
-            <td class="a-help">{m.created_at}</td>
-          </tr>
-        ))}
-      </tbody>
-    </table>
-  )}
+      {messages.length === 0 ? (
+        <div class="ibx__empty"><Lucide name="Inbox" size={28} /><p>{q ? 'No messages match your search.' : folder === 'inbox' ? 'No messages yet. New Contact page messages land here.' : 'Nothing here.'}</p></div>
+      ) : (
+        <ul>
+          {messages.map((m) => (
+            <li>
+              <a href={keep(m.id)} class:list={['ibx__item', { unread: !m.read, 'is-active': open?.id === m.id }]}>
+                <span class="ibx__avatar" aria-hidden="true">{initials(m.name)}</span>
+                <span class="ibx__meta">
+                  <span class="ibx__row"><strong>{m.name}</strong><time>{when(m.created_at)}</time></span>
+                  <span class="ibx__subj">{m.starred ? <Lucide name="Star" size={13} class="ibx__star" /> : null}{m.subject}</span>
+                  <span class="ibx__snip">{m.replies > 0 && <span class="ibx__tag">Replied</span>}{m.body.slice(0, 110)}</span>
+                </span>
+              </a>
+            </li>
+          ))}
+        </ul>
+      )}
+    </section>
+
+    <section class="ibx__read" aria-label="Message">
+      {open ? (
+        <article>
+          <a class="ibx__back a-btn a-btn--ghost a-btn--sm" href={keep()}><Lucide name="ArrowLeft" size={15} /> Back</a>
+          <header class="ibx__head">
+            <h2>{open.subject}</h2>
+            <form method="post" class="ibx__actions">
+              <input type="hidden" name="id" value={open.id} />
+              <button class="a-btn a-btn--ghost a-btn--sm" name="action" value="star" aria-pressed={open.starred ? 'true' : 'false'} title={open.starred ? 'Unstar' : 'Star'}><Lucide name="Star" size={15} class={open.starred ? 'ibx__star' : ''} /> {open.starred ? 'Starred' : 'Star'}</button>
+              {open.archived
+                ? <button class="a-btn a-btn--ghost a-btn--sm" name="action" value="unarchive"><Lucide name="ArchiveRestore" size={15} /> Move to inbox</button>
+                : <button class="a-btn a-btn--ghost a-btn--sm" name="action" value="archive"><Lucide name="Archive" size={15} /> Archive</button>}
+              <button class="a-btn a-btn--ghost a-btn--sm" name="action" value="unread"><Lucide name="MailOpen" size={15} /> Mark unread</button>
+              <button class="a-btn a-btn--danger a-btn--sm" name="action" value="delete" data-confirm="Delete this message and its replies permanently?"><Lucide name="Trash2" size={15} /> Delete</button>
+            </form>
+          </header>
+
+          <div class="ibx__msg">
+            <div class="ibx__from">
+              <span class="ibx__avatar" aria-hidden="true">{initials(open.name)}</span>
+              <div><strong>{open.name}</strong> <a href={`mailto:${open.email}`}>&lt;{open.email}&gt;</a><div class="a-help">{full(open.created_at)}</div></div>
+            </div>
+            <p class="ibx__body">{open.body}</p>
+          </div>
+
+          {replies.map((r) => (
+            <div class:list={['ibx__msg', 'ibx__msg--reply', `is-${r.status}`]}>
+              <div class="ibx__from">
+                <span class="ibx__avatar ibx__avatar--us" aria-hidden="true">{initials(r.author ?? 'SHAPE')}</span>
+                <div>
+                  <strong>{r.author ?? 'Former user'}</strong>
+                  <span class="ibx__status">{r.status === 'sent' ? 'Emailed' : r.status === 'failed' ? 'Email failed' : 'Recorded only'}</span>
+                  <div class="a-help">{full(r.created_at)}{r.error && ` · ${r.error}`}</div>
+                </div>
+              </div>
+              <p class="ibx__body">{r.body}</p>
+            </div>
+          ))}
+
+          <form method="post" class="ibx__reply">
+            <input type="hidden" name="id" value={open.id} />
+            <input type="hidden" name="action" value="reply" />
+            <label class="a-label" for="reply-body">Reply to {open.name}</label>
+            <textarea id="reply-body" name="body" class="a-input" rows="6" required placeholder={`Dear ${open.name.split(' ')[0]},`}></textarea>
+            <div class="ibx__reply-bar">
+              {canEmail ? (
+                <>
+                  <button class="a-btn" name="mode" value="send"><Lucide name="Send" size={15} /> Send email</button>
+                  <button class="a-btn a-btn--ghost" name="mode" value="log">Record without sending</button>
+                </>
+              ) : (
+                <>
+                  <button class="a-btn" name="mode" value="log"><Lucide name="Save" size={15} /> Record reply</button>
+                  <a class="a-btn a-btn--ghost" href={`mailto:${open.email}?subject=${encodeURIComponent('Re: ' + open.subject)}`}><Lucide name="Mail" size={15} /> Open in mail app</a>
+                  <span class="a-help">Email sending is not configured yet, so replies are recorded here only.</span>
+                </>
+              )}
+            </div>
+          </form>
+        </article>
+      ) : (
+        <div class="ibx__empty ibx__empty--read"><Lucide name="Mail" size={34} /><p>Select a message to read it.</p></div>
+      )}
+    </section>
+  </div>
 </Admin>

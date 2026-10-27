@@ -203,6 +203,29 @@ describe('engagement', () => {
     expect(c.body).toBe('Hello');
   });
 
+  it('keeps an inbox: folders, search, star, archive and recorded replies', async () => {
+    const { addMessage, listMessages, folderCounts, setStarred, setArchived, addReply, listReplies, countUnreadMessages, markAllRead } = await import('../../src/lib/engagement');
+    const a = addMessage({ name: 'Inbox Tester', email: 'inbox@example.org', subject: 'Inbox subject one', body: 'Body about curricula' });
+    const b = addMessage({ name: 'Second Sender', email: 'second@example.org', subject: 'Inbox subject two', body: 'Another body' });
+    if (!a.ok || !b.ok) throw new Error('setup');
+    expect(listMessages('inbox', 'curricula').map((m) => m.id)).toEqual([a.id]);
+    setStarred(a.id, true);
+    setArchived(b.id, true);
+    expect(listMessages('starred').some((m) => m.id === a.id)).toBe(true);
+    expect(listMessages('inbox').some((m) => m.id === b.id)).toBe(false);
+    expect(listMessages('archived').some((m) => m.id === b.id)).toBe(true);
+    const unreadBefore = countUnreadMessages();
+    expect(folderCounts().unread).toBe(unreadBefore);
+    const { createUser } = await import('../../src/lib/auth');
+    const uid = createUser('inbox-replier@test.local', 'Replier', 'editor', 'a-long-enough-password');
+    addReply(a.id, uid, 'Thanks!', 'logged');
+    expect(listReplies(a.id)[0]).toMatchObject({ body: 'Thanks!', status: 'logged' });
+    expect(listMessages('inbox').find((m) => m.id === a.id)?.replies).toBe(1);
+    expect(listMessages('inbox', "x' OR 1=1 --")).toEqual([]);
+    markAllRead();
+    expect(countUnreadMessages()).toBe(0);
+  });
+
   it('rejects invalid comments and messages', () => {
     expect(eng.addComment({ post: 'p', author: '', email: 'x', body: '', ip: '1' }).ok).toBe(false);
     expect(eng.addMessage({ name: 'a', email: 'bad', subject: 's', body: 'b' }).ok).toBe(false);

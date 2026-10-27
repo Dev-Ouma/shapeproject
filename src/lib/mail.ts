@@ -26,3 +26,15 @@ export function notify(to: string, subject: string, text: string, replyTo?: stri
     console.error('Mail send failed:', e?.message ?? e);
   });
 }
+
+/** Send an email and wait for the result (used for replies, where the CMS records success or failure). */
+export async function sendMail(to: string, subject: string, text: string, replyTo?: string): Promise<{ ok: true } | { ok: false; error: string }> {
+  const t = getTransport();
+  if (!t) return { ok: false, error: 'Email sending is not configured.' };
+  try {
+    await t.sendMail({ from: process.env.SMTP_FROM ?? process.env.SMTP_USER, to, subject, text, replyTo });
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, error: String((e as Error)?.message ?? e).slice(0, 300) };
+  }
+}

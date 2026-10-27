@@ -319,8 +319,19 @@ test('contact form messages reach the admin inbox', async ({ page, browser }) =>
 
   await login(page);
   await page.goto('/admin/messages');
-  await page.getByRole('link', { name: 'Partnership enquiry' }).click();
-  await expect(page.locator('.a-card')).toContainText('We would like to join as an associated partner.');
+  await page.getByRole('link', { name: /Partnership enquiry/ }).click();
+  await expect(page.locator('.ibx__read')).toContainText('We would like to join as an associated partner.');
+  // Replies are recorded in the thread (email is not configured in tests).
+  await page.fill('#reply-body', 'Thank you, Peter. We will be in touch.');
+  await page.click('.ibx__reply button[value=log]');
+  await expect(page.locator('.ibx__msg--reply')).toContainText('Thank you, Peter.');
+  await expect(page.locator('.ibx__msg--reply .ibx__status')).toHaveText('Recorded only');
+  await page.click('button[value=star]');
+  await expect(page.locator('button[value=star]')).toHaveAttribute('aria-pressed', 'true');
+  await page.click('button[value=archive]');
+  await expect(page.locator('.ibx__list')).not.toContainText('Partnership enquiry');
+  await page.goto('/admin/messages?f=archived&q=Partnership');
+  await expect(page.locator('.ibx__item')).toContainText('Replied');
   await page.goto('/admin');
   await expect(page.locator('.a-stat', { hasText: 'Unread messages' }).locator('strong')).toHaveText('0');
 });
