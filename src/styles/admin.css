@@ -100,7 +100,8 @@ body.admin { margin: 0; font: 15px/1.55 var(--a-font); color: var(--a-ink); back
 .a-list small { color: var(--a-muted); }
 
 /* Forms */
-.a-form { display: grid; gap: 18px; }
+.a-form { display: grid; grid-template-columns: minmax(0, 1fr); gap: 18px; }
+.a-field { min-width: 0; }
 .a-field { display: grid; gap: 6px; }
 .a-field > label, .a-field > .a-label { font-weight: 600; font-size: 0.88rem; }
 .a-field .a-req { color: var(--a-coral-d); }
@@ -181,7 +182,7 @@ dialog.a-dialog::backdrop { background: rgba(2, 30, 36, 0.55); }
 .a-pw input { padding-right: 44px !important; width: 100%; }
 .a-pw__btn { position: absolute; right: 6px; top: 50%; transform: translateY(-50%); width: 32px; height: 32px; display: grid; place-items: center; border: 0; border-radius: 6px; background: none; color: var(--a-muted); cursor: pointer; }
 .a-pw__btn:hover { color: var(--a-teal); background: var(--a-teal-l); }
-.a-otp { font: 600 1.4rem/1 ui-monospace, SFMono-Regular, Menlo, monospace !important; letter-spacing: 0.35em; text-align: center; }
+.a-otp { font: 600 1.4rem/1 ui-monospace, SFMono-Regular, Menlo, monospace !important; letter-spacing: 0.35em; text-align: center; width: 100%; min-width: 0; padding: 12px !important; }
 .a-qr { display: grid; place-items: center; margin: 6px auto 12px; width: 200px; height: 200px; padding: 8px; border: 1px solid var(--a-line); border-radius: 12px; }
 .a-qr svg { width: 100%; height: 100%; }
 .a-steps { margin: 0 0 6px; padding-left: 1.2em; font-size: 0.9rem; color: var(--a-muted); }

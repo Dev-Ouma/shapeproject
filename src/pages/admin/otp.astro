@@ -67,7 +67,7 @@ const grouped = secret.replace(/(.{4})/g, '$1 ').trim();
       <form method="post" class="a-form">
         <div class="a-field">
           <label for="code">6-digit code</label>
-          <input id="code" name="code" class="a-otp" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9 ]{6,7}|[a-f0-9-]{11}" maxlength="11" required autofocus />
+          <input id="code" name="code" type="text" class="a-otp a-input" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9 ]{6,7}|[a-f0-9-]{11}" maxlength="11" required autofocus />
           <span class="a-help">Lost your phone? Enter one of your recovery codes instead.</span>
         </div>
         <button class="a-btn" type="submit">Verify</button>
@@ -88,7 +88,7 @@ const grouped = secret.replace(/(.{4})/g, '$1 ').trim();
       <form method="post" class="a-form">
         <div class="a-field">
           <label for="code">6-digit code</label>
-          <input id="code" name="code" class="a-otp" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9 ]{6,7}" maxlength="7" required />
+          <input id="code" name="code" type="text" class="a-otp a-input" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9 ]{6,7}" maxlength="7" required />
         </div>
         <button class="a-btn" type="submit">Turn on and continue</button>
       </form>
