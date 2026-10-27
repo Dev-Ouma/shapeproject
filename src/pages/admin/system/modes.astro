@@ -1,0 +1,115 @@
+---
+import Admin from '../../../layouts/Admin.astro';
+import Lucide from '../../../components/Lucide.astro';
+import { audit, can, sessionHash, SESSION_COOKIE } from '../../../lib/auth';
+import { getMaintenance, getLockdown, setMaintenance, startLockdown, liftLockdown } from '../../../lib/system';
+
+const user = Astro.locals.user!;
+if (!can(user, 'admin')) return new Response('Forbidden: admins only', { status: 403 });
+let error = '';
+let form = { message: '', until: '' };
+if (Astro.request.method === 'POST') {
+  const f = await Astro.request.formData();
+  const action = String(f.get('action'));
+  if (action === 'maintenance-on' || action === 'maintenance-update') {
+    const message = String(f.get('message') ?? '').trim();
+    const untilRaw = String(f.get('until') ?? '').trim();
+    form = { message, until: untilRaw };
+    // datetime-local has no zone: the form is labelled East Africa Time.
+    const until = untilRaw ? new Date(`${untilRaw}:00+03:00`) : undefined;
+    if (message.length > 500) error = 'Keep the message under 500 characters.';
+    else if (untilRaw && (!until || Number.isNaN(until.getTime()))) error = 'Enter a valid end time.';
+    else if (until && until.getTime() < Date.now()) error = 'The planned end time is in the past.';
+    else {
+      setMaintenance(true, { message, until: until?.toISOString() ?? '' }, user.id);
+      audit(user.id, action === 'maintenance-on' ? 'maintenance.on' : 'maintenance.update', message || undefined, { until: until?.toISOString() ?? null });
+      return Astro.redirect('/admin/system/modes?done=maintenance-on', 303);
+    }
+  } else if (action === 'maintenance-off') {
+    setMaintenance(false, {}, user.id);
+    audit(user.id, 'maintenance.off');
+    return Astro.redirect('/admin/system/modes?done=maintenance-off', 303);
+  } else if (action === 'lockdown-on') {
+    if (String(f.get('confirm') ?? '').trim() !== 'LOCKDOWN') error = 'Type LOCKDOWN in capitals to confirm.';
+    else {
+      const freeze = f.get('freeze') === 'on';
+      const reason = String(f.get('reason') ?? '').trim();
+      startLockdown({ freeze, reason }, user.id, sessionHash(Astro.cookies.get(SESSION_COOKIE)?.value));
+      audit(user.id, 'lockdown.on', reason || undefined, { freeze });
+      return Astro.redirect('/admin/system/modes?done=lockdown-on', 303);
+    }
+  } else if (action === 'lockdown-off') {
+    liftLockdown(user.id);
+    audit(user.id, 'lockdown.off');
+    return Astro.redirect('/admin/system/modes?done=lockdown-off', 303);
+  } else error = 'Unknown action.';
+  Astro.response.status = 422;
+}
+const m = getMaintenance();
+const lock = getLockdown();
+const done = Astro.url.searchParams.get('done');
+const toLocal = (iso: string) => (iso ? new Date(Date.parse(iso) + 3 * 3600e3).toISOString().slice(0, 16) : '');
+const fmt = (iso?: string) => (iso ? new Date(iso).toLocaleString('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit', timeZone: 'Africa/Nairobi' }) + ' EAT' : '');
+const flash: Record<string, string> = {
+  'maintenance-on': 'Maintenance mode is on. Visitors now see the maintenance page; you can still browse the site.',
+  'maintenance-off': 'Maintenance mode is off. The site is live again.',
+  'lockdown-on': 'Lockdown is active. All other sessions were signed out.',
+  'lockdown-off': 'Lockdown lifted. Editors can sign in again.',
+};
+---
+
+<Admin title="Maintenance & lockdown" crumbs={[{ label: 'Administration', href: '/admin/system' }, { label: 'Maintenance & lockdown' }]}>
+  <div class="a-head"><div><h1>Maintenance & lockdown</h1><p>Two switches for planned work and emergencies. Every change is recorded in the audit trail.</p></div></div>
+  {done && flash[done] && <p class="a-flash a-flash--ok" role="status">{flash[done]}</p>}
+  {error && <p class="a-flash a-flash--err" role="alert">{error}</p>}
+
+  <div class="a-grid2 sys-modes">
+    <section class:list={['a-card', 'sys-mode', { 'is-on': m.on }]} aria-labelledby="mm-h">
+      <header class="sys-mode__head">
+        <span class="sys-mode__ico"><Lucide name="Construction" size={20} /></span>
+        <div><h2 id="mm-h">Maintenance mode</h2><p class="a-help">Visitors get a friendly “back shortly” page (HTTP 503). Signed-in staff keep browsing the site normally.</p></div>
+        <span class:list={['a-pill', m.on ? 'a-pill--scheduled' : 'a-pill--published']} data-state="maintenance">{m.on ? 'On' : 'Off'}</span>
+      </header>
+      {m.on && <p class="a-help">On since {fmt(m.since)}{m.until && ` · planned end ${fmt(m.until)}`}</p>}
+      <form method="post" class="a-form">
+        <div class="a-field"><label for="mmsg">Message for visitors <span class="a-help">(optional)</span></label><textarea id="mmsg" name="message" rows="3" maxlength="500" placeholder="We are making some improvements to the SHAPE project website.">{form.message || m.message}</textarea></div>
+        <div class="a-field"><label for="muntil">Planned end, East Africa Time <span class="a-help">(optional)</span></label><input id="muntil" type="datetime-local" name="until" value={form.until || toLocal(m.until)} /></div>
+        <div class="sys-mode__actions">
+          {m.on ? (
+            <Fragment>
+              <button class="a-btn a-btn--ghost" name="action" value="maintenance-update"><Lucide name="Save" size={16} /> Update details</button>
+              <button class="a-btn" name="action" value="maintenance-off" formnovalidate><Lucide name="Globe" size={16} /> Turn off maintenance</button>
+            </Fragment>
+          ) : (
+            <button class="a-btn a-btn--coral" name="action" value="maintenance-on" data-confirm="Take the public site offline for visitors?"><Lucide name="Construction" size={16} /> Turn on maintenance</button>
+          )}
+        </div>
+      </form>
+    </section>
+
+    <section class:list={['a-card', 'sys-mode', 'sys-mode--lock', { 'is-on': lock.on }]} aria-labelledby="ld-h">
+      <header class="sys-mode__head">
+        <span class="sys-mode__ico"><Lucide name="ShieldAlert" size={20} /></span>
+        <div><h2 id="ld-h">Lockdown</h2><p class="a-help">For emergencies such as a compromised account: signs everyone else out, only admins can sign in, and public comments and contact messages are paused.</p></div>
+        <span class:list={['a-pill', lock.on ? 'a-pill--draft' : 'a-pill--published']} data-state="lockdown">{lock.on ? 'Active' : 'Off'}</span>
+      </header>
+      {lock.on ? (
+        <form method="post" class="a-form">
+          <ul class="sys-mode__facts">
+            <li>Active since {fmt(lock.since)}</li>
+            <li>{lock.freeze ? 'Content is frozen: the CMS is read-only.' : 'Admins can still edit content.'}</li>
+            {lock.reason && <li>Reason: {lock.reason}</li>}
+          </ul>
+          <button class="a-btn" name="action" value="lockdown-off"><Lucide name="LockOpen" size={16} /> Lift lockdown</button>
+        </form>
+      ) : (
+        <form method="post" class="a-form">
+          <div class="a-field"><label for="lreason">Reason <span class="a-help">(optional, kept in the audit trail)</span></label><input id="lreason" type="text" name="reason" maxlength="300" /></div>
+          <label class="a-check"><input type="checkbox" name="freeze" /> Also freeze all content edits (read-only CMS)</label>
+          <div class="a-field"><label for="lconfirm">Type <strong>LOCKDOWN</strong> to confirm</label><input id="lconfirm" type="text" name="confirm" autocomplete="off" required /></div>
+          <button class="a-btn a-btn--danger" name="action" value="lockdown-on"><Lucide name="Lock" size={16} /> Start lockdown</button>
+        </form>
+      )}
+    </section>
+  </div>
+</Admin>

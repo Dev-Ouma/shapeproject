@@ -3,6 +3,7 @@
 import { createHash, randomBytes, scryptSync, timingSafeEqual } from 'node:crypto';
 import { getDb } from './db';
 import { otpRequired } from './otp';
+import { currentRequest, getLockdown } from './system';
 
 export type Role = 'admin' | 'editor';
 export type User = { id: number; email: string; name: string; role: Role; disabled: number; created_at: string; last_login: string | null };
@@ -12,6 +13,7 @@ const SESSION_DAYS = 14;
 const SCRYPT = { N: 2 ** 15, r: 8, p: 1, maxmem: 64 * 1024 * 1024 };
 
 const sha256 = (s: string) => createHash('sha256').update(s).digest('hex');
+export const sessionHash = (token: string | undefined) => (token ? sha256(token) : undefined);
 
 export function hashPassword(password: string): string {
   const salt = randomBytes(16);
@@ -115,6 +117,7 @@ export function login(email: string, password: string, meta: { ip: string; userA
     return { ok: false, error: 'Incorrect email or password.' };
   }
   attempts.delete(key);
+  if (user!.role !== 'admin' && getLockdown().on) return { ok: false, error: 'The CMS is in lockdown. Only administrators can sign in right now.' };
   const token = randomBytes(32).toString('base64url');
   const needsOtp = otpRequired();
   // A session that still needs its second factor lives only 10 minutes until the code is entered.
@@ -195,8 +198,12 @@ export function listPendingInvites() {
 
 /* ---------------- audit ---------------- */
 
-export function audit(userId: number | undefined, action: string, target?: string) {
-  getDb().prepare('INSERT INTO audit_log (user_id, action, target) VALUES (?, ?, ?)').run(userId ?? null, action, target ?? null);
+/** Record an action. `detail` (e.g. a field diff) is stored as JSON; IP and user agent come from the request context. */
+export function audit(userId: number | undefined, action: string, target?: string, detail?: unknown) {
+  const { ip, userAgent } = currentRequest();
+  getDb()
+    .prepare('INSERT INTO audit_log (user_id, action, target, ip, user_agent, detail) VALUES (?, ?, ?, ?, ?, ?)')
+    .run(userId ?? null, action, target ?? null, ip ?? null, userAgent?.slice(0, 300) ?? null, detail === undefined ? null : JSON.stringify(detail));
 }
 
 export function recentAudit(limit = 50) {

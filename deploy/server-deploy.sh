@@ -51,10 +51,10 @@ else
   (set -a; . "$APP/shared/.env"; set +a; cd "$APP/current" && setsid nohup node dist/server/entry.mjs >> "$APP/shared/app.log" 2>&1 < /dev/null & echo $! > "$APP/shared/app.pid")
 fi
 
-for i in $(seq 1 30); do curl -fsS -o /dev/null "http://127.0.0.1:${PORT:-4321}/" && break; sleep 1; done
+for i in $(seq 1 30); do curl -fsS -o /dev/null "http://127.0.0.1:${PORT:-4321}/healthz" && break; sleep 1; done
 # Anchor on the node binary so shells whose command line merely mentions the path do not match.
 LIVE=$(pgrep -u "$(id -u)" -f '^node .*dist/server/entry\.mjs' | while read -r p; do readlink -f /proc/$p/cwd; done | sort -u)
-if curl -fsS -o /dev/null "http://127.0.0.1:${PORT:-4321}/" && [ "$LIVE" = "$REL" ]; then
+if curl -fsS -o /dev/null "http://127.0.0.1:${PORT:-4321}/healthz" && [ "$LIVE" = "$REL" ]; then
   echo "Release $SHA is live."
   ls -1dt "$APP"/releases/* | tail -n +6 | xargs -r rm -rf
 else

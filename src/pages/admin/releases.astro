@@ -1,0 +1,39 @@
+---
+import Admin from '../../layouts/Admin.astro';
+import Lucide from '../../components/Lucide.astro';
+import { publishedReleases } from '../../lib/sysinfo';
+import { can } from '../../lib/auth';
+
+const isAdmin = can(Astro.locals.user, 'admin');
+const releases = publishedReleases();
+const fmt = (d: string) => new Date(d + 'T00:00:00Z').toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric', timeZone: 'UTC' });
+---
+
+<Admin title="What’s new" crumbs={[{ label: 'What’s new' }]}>
+  <div class="a-head">
+    <div><h1>What’s new</h1><p>Release notes for the SHAPE website and CMS.</p></div>
+    {isAdmin && <a class="a-btn a-btn--coral" href="/admin/content/releases/new"><Lucide name="Plus" size={16} /> New release note</a>}
+  </div>
+  {releases.length === 0 ? (
+    <div class="a-card a-empty"><Lucide name="Rocket" size={28} /><p>No release notes have been published yet.</p></div>
+  ) : (
+    <ol class="rel-list">
+      {releases.map((r, i) => (
+        <li class="rel" id={`v${r.data.version}`}>
+          <div class="rel__rail" aria-hidden="true"><span class:list={['rel__dot', { 'is-latest': i === 0 }]}></span></div>
+          <article class="a-card rel__card">
+            <header class="rel__head">
+              <span class="rel__ver">v{r.data.version}</span>
+              {i === 0 && <span class="a-pill a-pill--published">Current</span>}
+              <time class="a-help" datetime={r.data.date}>{fmt(r.data.date)}</time>
+              {isAdmin && <a class="a-btn a-btn--ghost a-btn--sm rel__edit" href={`/admin/content/releases/${r.id}`}>Edit</a>}
+            </header>
+            <h2>{r.data.title}</h2>
+            {r.data.summary && <p class="rel__sum">{r.data.summary}</p>}
+            <div class="rel__notes" set:html={r.data.notes} />
+          </article>
+        </li>
+      ))}
+    </ol>
+  )}
+</Admin>

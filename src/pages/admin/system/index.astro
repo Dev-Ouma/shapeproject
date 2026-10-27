@@ -1,0 +1,80 @@
+---
+import Admin from '../../../layouts/Admin.astro';
+import Lucide from '../../../components/Lucide.astro';
+import { systemStats, formatBytes, currentRelease } from '../../../lib/sysinfo';
+import { getMaintenance, getLockdown } from '../../../lib/system';
+import { countTrash } from '../../../lib/trash';
+import { queryAudit } from '../../../lib/audit';
+
+const s = systemStats();
+const rel = currentRelease();
+const m = getMaintenance();
+const lock = getLockdown();
+const bin = countTrash();
+const recent = queryAudit({}, 1, 6).rows;
+const up = s.uptimeSec >= 86400 ? `${Math.floor(s.uptimeSec / 86400)} d` : s.uptimeSec >= 3600 ? `${Math.floor(s.uptimeSec / 3600)} h` : `${Math.max(1, Math.floor(s.uptimeSec / 60))} min`;
+const tiles = [
+  { icon: 'Database', label: 'Database', value: formatBytes(s.dbBytes), sub: `schema v${s.schema}` },
+  { icon: 'HardDrive', label: 'Uploads on disk', value: formatBytes(s.uploads.bytes), sub: `${s.uploads.files} files` },
+  { icon: 'Layers', label: 'Content items', value: s.entries.toLocaleString('en-GB'), sub: `${s.revisions.toLocaleString('en-GB')} revisions kept` },
+  { icon: 'Image', label: 'Media files', value: s.media.toLocaleString('en-GB'), sub: `${bin} in the recycle bin` },
+  { icon: 'Users', label: 'Active users', value: String(s.users), sub: `${s.sessions} signed-in sessions` },
+  { icon: 'ScrollText', label: 'Audit events', value: s.auditEvents.toLocaleString('en-GB'), sub: `${s.analyticsEvents.toLocaleString('en-GB')} analytics events` },
+];
+const modules = [
+  { href: '/admin/audit', icon: 'ScrollText', title: 'Audit trail', text: 'Filter, search, compare and export every action.' },
+  { href: '/admin/trash', icon: 'Recycle', title: 'Recycle bin', text: `${bin} item${bin === 1 ? '' : 's'} · auto-removed after 30 days.` },
+  { href: '/admin/content/releases', icon: 'Rocket', title: 'Release notes', text: rel ? `Current version ${rel.version}.` : 'Write the first release note.' },
+  { href: '/admin/system/modes', icon: 'ShieldAlert', title: 'Maintenance & lockdown', text: 'Take the site offline or lock the CMS in an emergency.' },
+  { href: '/admin/users', icon: 'UserCog', title: 'Users', text: 'Invite people, change roles, reset two-step sign-in.' },
+];
+---
+
+<Admin title="Administration" crumbs={[{ label: 'Administration' }]}>
+  <div class="a-head"><div><h1>Administration</h1><p>System health and the controls that keep the CMS safe.</p></div></div>
+
+  <div class="sys-status">
+    <a href="/admin/system/modes" class:list={['sys-pill', m.on ? 'is-warn' : 'is-ok']}>
+      <Lucide name={m.on ? 'Construction' : 'Globe'} size={18} />
+      <span><strong>{m.on ? 'Maintenance mode is on' : 'Site is live'}</strong><small>{m.on ? 'Visitors see the maintenance page' : 'Public pages are served normally'}</small></span>
+    </a>
+    <a href="/admin/system/modes" class:list={['sys-pill', lock.on ? 'is-danger' : 'is-ok']}>
+      <Lucide name={lock.on ? 'Lock' : 'ShieldCheck'} size={18} />
+      <span><strong>{lock.on ? 'Lockdown is active' : 'No lockdown'}</strong><small>{lock.on ? (lock.freeze ? 'CMS is read-only' : 'Admins only') : 'Editors can sign in and work'}</small></span>
+    </a>
+    <a href={rel ? `/admin/releases#v${rel.version}` : '/admin/content/releases'} class="sys-pill is-ok">
+      <Lucide name="Rocket" size={18} />
+      <span><strong>{rel ? `Version ${rel.version}` : 'No release yet'}</strong><small>{rel ? `${rel.title} · ${rel.date}` : 'Publish a release note'}</small></span>
+    </a>
+  </div>
+
+  <div class="sys-tiles">
+    {tiles.map((t) => (
+      <div class="a-card sys-tile">
+        <span class="sys-tile__ico"><Lucide name={t.icon as any} size={18} /></span>
+        <span class="sys-tile__label">{t.label}</span>
+        <strong>{t.value}</strong>
+        <small class="a-help">{t.sub}</small>
+      </div>
+    ))}
+  </div>
+
+  <div class="a-grid2">
+    <div class="a-card">
+      <h3>Modules</h3>
+      <ul class="sys-mods">
+        {modules.map((x) => (
+          <li><a href={x.href}><span class="sys-tile__ico"><Lucide name={x.icon as any} size={17} /></span><span><strong>{x.title}</strong><small class="a-help">{x.text}</small></span><Lucide name="ChevronRight" size={16} /></a></li>
+        ))}
+      </ul>
+    </div>
+    <div class="a-card">
+      <h3>Latest activity</h3>
+      {recent.length ? (
+        <ul class="a-list">{recent.map((a) => <li><span><strong>{a.user_name ?? 'System'}</strong> <code>{a.action}</code>{a.target && <Fragment> · <em>{a.target}</em></Fragment>}</span><small>{a.at}</small></li>)}</ul>
+      ) : <p class="a-help">Nothing recorded yet.</p>}
+      <p style="margin:12px 0 0"><a href="/admin/audit">Open the audit trail →</a></p>
+      <p class="a-help" style="margin:14px 0 0">Node {s.node} · up {up}</p>
+    </div>
+  </div>
+</Admin>

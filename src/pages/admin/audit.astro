@@ -1,13 +1,106 @@
 ---
 import Admin from '../../layouts/Admin.astro';
-import { recentAudit } from '../../lib/auth';
-const rows = recentAudit(300);
+import Lucide from '../../components/Lucide.astro';
+import DiffTable from '../../components/admin/DiffTable.astro';
+import { listUsers } from '../../lib/auth';
+import { queryAudit, auditFacets, parseAuditFilter } from '../../lib/audit';
+
+const sp = Astro.url.searchParams;
+const f = parseAuditFilter(sp);
+const page = Math.max(1, Number(sp.get('page')) || 1);
+const { rows, total, pages } = queryAudit(f, page);
+const { areas, verbs } = auditFacets();
+const users = listUsers();
+const qs = (over: Record<string, string | number | undefined>) => {
+  const p = new URLSearchParams();
+  for (const [k, v] of Object.entries({ ...f, page: undefined, ...over })) if (v !== undefined && v !== '') p.set(k, String(v));
+  const s = p.toString();
+  return s ? `?${s}` : '';
+};
+const filtered = Object.values(f).some((v) => v !== undefined);
+const parse = (d: string | null) => {
+  if (!d) return undefined;
+  try {
+    return JSON.parse(d) as { changes?: { field: string; before: unknown; after: unknown }[]; [k: string]: unknown };
+  } catch {
+    return undefined;
+  }
+};
+const shortUa = (ua: string | null) => {
+  if (!ua) return '';
+  const b = /Edg\//.test(ua) ? 'Edge' : /Firefox\//.test(ua) ? 'Firefox' : /Chrome\//.test(ua) ? 'Chrome' : /Safari\//.test(ua) ? 'Safari' : 'Other';
+  const o = /Windows/.test(ua) ? 'Windows' : /Android/.test(ua) ? 'Android' : /iPhone|iPad/.test(ua) ? 'iOS' : /Mac OS/.test(ua) ? 'macOS' : /Linux/.test(ua) ? 'Linux' : '';
+  return o ? `${b} · ${o}` : b;
+};
+const tone = (a: string) => (/\.(delete|purge)|empty|lockdown\.on/.test(a) ? 'danger' : /\.(create|restore|duplicate)|\.on$/.test(a) ? 'good' : 'neutral');
 ---
 
-<Admin title="Activity log" crumbs={[{ label: 'Activity log' }]}>
-  <div class="a-head"><div><h1>Activity log</h1><p>Last 300 actions in the CMS.</p></div></div>
-  <table class="a-table">
-    <thead><tr><th>When (UTC)</th><th>Who</th><th>Action</th><th>Target</th></tr></thead>
-    <tbody>{rows.map((r) => <tr><td class="a-help">{r.at}</td><td>{r.user_name ?? '—'}</td><td><code>{r.action}</code></td><td>{r.target}</td></tr>)}</tbody>
-  </table>
+<Admin title="Audit trail" crumbs={[{ label: 'Administration', href: '/admin/system' }, { label: 'Audit trail' }]}>
+  <div class="a-head">
+    <div><h1>Audit trail</h1><p>Every sign-in and change in the CMS, with who, when, from where, and what changed.</p></div>
+    <a class="a-btn a-btn--ghost" href={`/admin/api/audit.csv${qs({})}`} download><Lucide name="Download" size={16} /> Export CSV</a>
+  </div>
+
+  <form method="get" class="a-card a-filters" role="search" aria-label="Filter the audit trail">
+    <div class="a-field a-filters__q"><label for="aq">Search</label><input id="aq" type="search" name="q" value={f.q ?? ''} placeholder="Item, action, IP or person" /></div>
+    <div class="a-field"><label for="auser">User</label>
+      <select id="auser" name="user"><option value="">Everyone</option>{users.map((u) => <option value={u.id} selected={f.user === u.id}>{u.name}</option>)}</select>
+    </div>
+    <div class="a-field"><label for="aarea">Area</label>
+      <select id="aarea" name="area"><option value="">All areas</option>{areas.map((a) => <option value={a} selected={f.area === a}>{a}</option>)}</select>
+    </div>
+    <div class="a-field"><label for="averb">Action</label>
+      <select id="averb" name="verb"><option value="">Any action</option>{verbs.map((v) => <option value={v} selected={f.verb === v}>{v}</option>)}</select>
+    </div>
+    <div class="a-field"><label for="afrom">From</label><input id="afrom" type="date" name="from" value={f.from ?? ''} /></div>
+    <div class="a-field"><label for="ato">To</label><input id="ato" type="date" name="to" value={f.to ?? ''} /></div>
+    <div class="a-filters__go">
+      <button class="a-btn" type="submit"><Lucide name="Filter" size={15} /> Apply</button>
+      {filtered && <a class="a-btn a-btn--ghost" href="/admin/audit">Reset</a>}
+    </div>
+  </form>
+
+  <p class="a-help" role="status">{total.toLocaleString('en-GB')} {total === 1 ? 'event' : 'events'}{filtered ? ' match these filters' : ''} · times in UTC</p>
+
+  {rows.length === 0 ? (
+    <div class="a-card a-empty"><Lucide name="ScrollText" size={28} /><p>No events{filtered ? ' match these filters' : ' yet'}.</p></div>
+  ) : (
+    <ol class="a-trail">
+      {rows.map((r) => {
+        const d = parse(r.detail);
+        const changes = d?.changes ?? [];
+        return (
+          <li class="a-trail__item">
+            <span class:list={['a-trail__dot', `is-${tone(r.action)}`]} aria-hidden="true"></span>
+            <div class="a-trail__body">
+              <div class="a-trail__line">
+                <strong>{r.user_name ?? 'System'}</strong>
+                <code class="a-trail__act">{r.action}</code>
+                {r.target && <span class="a-trail__target">{r.target}</span>}
+              </div>
+              <div class="a-help a-trail__meta">
+                <time>{r.at}</time>
+                {r.ip && <span>IP {r.ip}</span>}
+                {r.user_agent && <span title={r.user_agent}>{shortUa(r.user_agent)}</span>}
+              </div>
+              {changes.length > 0 && (
+                <details class="a-trail__diff">
+                  <summary>{changes.length} field{changes.length === 1 ? '' : 's'} changed</summary>
+                  <DiffTable changes={changes} />
+                </details>
+              )}
+            </div>
+          </li>
+        );
+      })}
+    </ol>
+  )}
+
+  {pages > 1 && (
+    <nav class="a-pager" aria-label="Pages">
+      {page > 1 ? <a class="a-btn a-btn--ghost a-btn--sm" href={`/admin/audit${qs({ page: page - 1 })}`} rel="prev"><Lucide name="ChevronLeft" size={14} /> Newer</a> : <span></span>}
+      <span class="a-help">Page {page} of {pages}</span>
+      {page < pages ? <a class="a-btn a-btn--ghost a-btn--sm" href={`/admin/audit${qs({ page: page + 1 })}`} rel="next">Older <Lucide name="ChevronRight" size={14} /></a> : <span></span>}
+    </nav>
+  )}
 </Admin>
