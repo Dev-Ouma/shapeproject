@@ -36,7 +36,10 @@ fi
 PREV=$(readlink -f "$APP/current" 2>/dev/null || true)
 ln -sfn "$REL" "$APP/current"
 
-if systemctl list-unit-files shape.service >/dev/null 2>&1 && systemctl list-unit-files | grep -q '^shape.service'; then
+# (Not `list-unit-files | grep -q`: with pipefail, grep closing early fails the pipe.)
+if [ -f /etc/systemd/system/shape.service ]; then
+  # Stop any pre-systemd copy so it does not hold the port.
+  if [ -f "$APP/shared/app.pid" ]; then kill "$(cat "$APP/shared/app.pid")" 2>/dev/null || true; rm -f "$APP/shared/app.pid"; fi
   sudo -n systemctl restart shape 2>/dev/null || { echo "Run: sudo systemctl restart shape"; }
 else
   # Before the systemd unit exists: run in the background as this user (tracked by pid file).
